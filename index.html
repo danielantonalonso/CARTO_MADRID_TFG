@@ -2,25 +2,45 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor Forestal TFG</title>
+    <title>Visor Forestal TFG - Madrid</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
         .indicador {
             position: absolute; top: 10px; left: 10px; z-index: 10;
-            background: white; padding: 15px; border-radius: 8px;
-            font-family: Arial, sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            background: white; padding: 12px; border-radius: 8px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            width: 220px;
         }
+
+        /* Estilos del Pop-up */
+        .maplibre-gl-popup-content {
+            padding: 15px;
+            border-radius: 10px;
+            font-family: sans-serif;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .popup-header { 
+            font-weight: bold; 
+            color: #1a5e37; 
+            border-bottom: 1px solid #eee; 
+            margin-bottom: 8px; 
+            padding-bottom: 4px;
+        }
+        .popup-label { font-weight: bold; color: #555; font-size: 11px; text-transform: uppercase; }
+        .popup-value { font-size: 13px; margin-bottom: 10px; color: #333; }
     </style>
 </head>
 <body>
 
 <div class="indicador">
-    <strong>Estado de la capa:</strong> <span id="msg">Cargando 79MB...</span>
-    <br><small>Ten paciencia, el archivo es muy pesado.</small>
+    <strong style="color: #2c3e50; font-size: 14px;">Visor MFE - Madrid</strong>
+    <p id="msg" style="margin: 8px 0 0 0; font-size: 11px; color: #666;">Cargando teselas...</p>
 </div>
 
 <div id="map"></div>
@@ -29,14 +49,15 @@
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [-3.703, 40.416], // Centro de Madrid
-        zoom: 8
+        center: [-3.703, 40.550], // Ajustado un poco más al norte para centrar mejor la CAM
+        zoom: 8.8 // Zoom ideal para ver la provincia completa
     });
 
     map.on('load', () => {
-        // AQUÍ HEMOS QUITADO LA CARPETA "capas/" PORQUE EL ARCHIVO ESTÁ SUELTO
+        
         map.addSource('mfe-source', {
             type: 'geojson',
+            // REVISA: Si cambiaste el nombre al comprimir, ponlo igual aquí:
             data: './Madrid_mfe_.geojson.json' 
         });
 
@@ -45,27 +66,5 @@
             'type': 'fill',
             'source': 'mfe-source',
             'paint': {
-                'fill-color': '#27ae60',
-                'fill-opacity': 0.6
-            }
-        });
-
-        // Comprobador de carga
-        map.on('sourcedata', (e) => {
-            if (e.sourceId === 'mfe-source' && e.isSourceLoaded) {
-                document.getElementById('msg').innerHTML = "✅ CAPA CARGADA";
-                document.getElementById('msg').style.color = "green";
-            }
-        });
-
-        // Detector de errores
-        map.on('error', (e) => {
-            document.getElementById('msg').innerHTML = "❌ ERROR: No se puede leer el archivo";
-            document.getElementById('msg').style.color = "red";
-            console.error(e);
-        });
-    });
-</script>
-
-</body>
-</html>
+                'fill-color': '#2ecc71',
+                'fill-opacity': 0
