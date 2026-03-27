@@ -7,28 +7,33 @@
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .titulo {
+        .panel {
             position: absolute; top: 10px; left: 10px; z-index: 10;
             background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 250px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 260px;
         }
-        input { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
-        button { width: 100%; cursor: pointer; background: #27ae60; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; }
+        h3 { margin: 0 0 10px 0; font-size: 16px; color: #2c3e50; }
+        select { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; }
+        #status { margin-top: 10px; font-size: 11px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="titulo">
-    <h3 style="margin:0;">Buscador de Mallas</h3>
-    <input type="text" id="buscador-codigo" placeholder="Ej: 30TVK42">
-    <button onclick="buscarCuadricula()">🔍 Buscar Malla</button>
+<div class="panel">
+    <h3>Visor Forestal TFG</h3>
+    <label style="font-size: 12px; color: #666;">Selecciona Cuadrícula:</label>
+    <select id="selector-malla" onchange="irAMalla(this.value)">
+        <option value="">Cargando datos...</option>
+    </select>
+    <div id="status">⏳ Conectando con GitHub...</div>
 </div>
 
 <div id="map"></div>
 
 <script>
+    // Configuración inicial del mapa
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
@@ -36,54 +41,100 @@
         zoom: 8
     });
 
-    map.on('load', () => {
-        // CAPA FORESTAL
-        map.addSource('forestal-source', {
-            type: 'geojson',
-            data: './capas/Madrid_mfe.geojson'
-        });
-        map.addLayer({
-            'id': 'capa-forestal',
-            'type': 'fill',
-            'source': 'forestal-source',
-            'paint': { 'fill-color': '#2dcc71', 'fill-opacity': 0.4 }
-        });
+    map.on('load', async () => {
+        const status = document.getElementById('status');
 
-        // CAPA CUADRÍCULAS
-        map.addSource('malla-source', {
-            type: 'geojson',
-            data: './capas/Cuadriculas_madrid.geojson'
-        });
-        map.addLayer({
-            'id': 'capa-malla-lineas',
-            'type': 'line',
-            'source': 'malla-source',
-            'paint': { 'line-color': '#7f8c8d', 'line-width': 1 }
-        });
+        try {
+            // --- 1. CARGAR MAPA FORESTAL (MFE) ---
+            // Usando el nombre exacto que me has dado: Madrid_mfe_.geojson.json
+            map.addSource('forestal-source', {
+                type: 'geojson',
+                data: './capas/Madrid_mfe_.geojson.json'
+            });
 
-        // CAPA RESALTADO
-        map.addLayer({
-            'id': 'capa-resaltado',
-            'type': 'line',
-            'source': 'malla-source',
-            'paint': { 'line-color': '#e74c3c', 'line-width': 4 },
-            'filter': ['==', 'Malla10km_', '']
-        });
+            map.addLayer({
+                'id': 'capa-forestal',
+                'type': 'fill',
+                'source': 'forestal-source',
+                'paint': {
+                    'fill-color': '#27ae60',
+                    'fill-opacity': 0.5,
+                    'fill-outline-color': '#1b7a43'
+                }
+            });
+
+            // --- 2. CARGAR CUADRÍCULAS ---
+            const respMalla = await fetch('./capas/Cuadriculas_madrid.geojson');
+            if (!respMalla.ok) throw new Error("No se pudo cargar Cuadriculas_madrid.geojson");
+            const dataMalla = await respMalla.json();
+
+            map.addSource('malla-source', {
+                type: 'geojson',
+                data: dataMalla
+            });
+
+            // Dibujar líneas de las cuadrículas
+            map.addLayer({
+                'id': 'capa-malla-lineas',
+                'type': 'line',
+                'source': 'malla-source',
+                'paint': { 'line-color': '#34495e', 'line-width': 0.5, 'line-opacity': 0.5 }
+            });
+
+            // Capa especial para resaltar en ROJO la seleccionada
+            map.addLayer({
+                'id': 'capa-resaltado',
+                'type': 'line',
+                'source': 'malla-source',
+                'paint': { 'line-color': '#e74c3c', 'line-width': 3 },
+                'filter': ['==', 'Malla10km_', '']
+            });
+
+            // --- 3. RELLENAR EL DESPLEGABLE ---
+            const selector = document.getElementById('selector-malla');
+            selector.innerHTML = '<option value="">-- Selecciona código --</option>';
+
+            // Extraer códigos de la columna Malla10km_
+            const codigos = dataMalla.features
+                .map(f => f.properties.Malla10km_)
+                .filter((v, i, a) => v && a.indexOf(v) === i) // Únicos y no nulos
+                .sort();
+
+            codigos.forEach(c => {
+                const el = document.createElement('option');
+                el.value = c;
+                el.textContent = c;
+                selector.appendChild(el);
+            });
+
+            status.innerHTML = "✅ Capas cargadas con éxito";
+            status.style.color = "green";
+
+        } catch (e) {
+            status.innerHTML = "❌ Error: Comprueba nombres en carpeta 'capas'";
+            status.style.color = "red";
+            console.error(e);
+        }
     });
 
-    function buscarCuadricula() {
-        const valor = document.getElementById('buscador-codigo').value.trim();
-        const features = map.querySourceFeatures('malla-source');
-        const encontrada = features.find(f => f.properties.Malla10km_ === valor);
+    // Función para centrar el mapa al elegir en el desplegable
+    function irAMalla(codigo) {
+        if (!codigo) return;
 
-        if (encontrada) {
-            const coord = encontrada.geometry.coordinates[0][0];
-            map.flyTo({ center: coord, zoom: 12 });
-            map.setFilter('capa-resaltado', ['==', 'Malla10km_', valor]);
-        } else {
-            alert("No encontrada. Revisa el código.");
+        // Buscamos la geometría en los datos cargados
+        const features = map.querySourceFeatures('malla-source');
+        const m = features.find(f => f.properties.Malla10km_ === codigo);
+
+        if (m) {
+            // Ir a la ubicación (tomamos el primer punto del polígono)
+            const centro = m.geometry.coordinates[0][0];
+            map.flyTo({ center: centro, zoom: 12, essential: true });
+            
+            // Resaltar en rojo
+            map.setFilter('capa-resaltado', ['==', 'Malla10km_', codigo]);
         }
     }
 </script>
+
 </body>
 </html>
