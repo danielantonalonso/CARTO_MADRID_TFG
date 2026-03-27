@@ -1,220 +1,186 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8" />
-    <title>Visor Forestal TFG - Madrid (Móvil Ready)</title>
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-    <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+    <meta charset="UTF-8">
+    <title>Visor de Idoneidad de Hábitat - Madrid</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; }
+        #map { height: 100vh; width: 100%; }
         
-        /* BOTÓN PARA MÓVIL */
-        #btn-toggle {
-            position: absolute; top: 10px; left: 10px; z-index: 20;
-            background: #27ae60; color: white; border: none; padding: 12px 15px;
-            border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            display: none; /* Se activa solo en pantallas pequeñas vía Media Query */
-        }
-
-        /* PANEL DE CONTROL */
         .panel {
-            position: absolute; top: 10px; left: 10px; z-index: 15;
-            background: white; padding: 15px; border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 280px;
-            max-height: 85vh; overflow-y: auto; transition: transform 0.3s ease;
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); width: 280px;
         }
-
-        /* SECCIONES Y LISTAS */
-        .seccion { margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        label { display: block; font-weight: bold; font-size: 11px; color: #1a5e37; margin-bottom: 5px; text-transform: uppercase; }
         
-        .scroll-list {
-            max-height: 120px; overflow-y: auto; border: 1px solid #ddd;
-            padding: 8px; border-radius: 6px; background: #fafafa;
-        }
-        .item-check { display: flex; align-items: center; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
-        .item-check input { width: 18px; height: 18px; margin-right: 10px; }
-
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button.accion { width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        select, input { width: 100%; margin: 8px 0; padding: 5px; }
         
-        /* LEYENDA */
-        .leyenda {
-            position: absolute; bottom: 20px; right: 10px; z-index: 10;
-            background: rgba(255,255,255,0.95); padding: 10px; border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2); width: 200px;
-            display: none; max-height: 200px; overflow-y: auto; font-size: 10px;
+        .legend {
+            background: white; padding: 10px; line-height: 18px;
+            color: #555; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);
         }
-        .color-box { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; flex-shrink: 0; }
-
-        /* AJUSTES PARA PANTALLAS PEQUEÑAS (MÓVILES) */
-        @media (max-width: 600px) {
-            #btn-toggle { display: block; } /* Mostrar botón */
-            .panel { 
-                width: calc(100% - 40px); 
-                top: 60px; 
-                transform: translateX(-120%); /* Esconder panel por defecto */
-            }
-            .panel.visible { transform: translateX(0); } /* Mostrar al pulsar */
-            .leyenda { width: 150px; bottom: 10px; }
-        }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+        
+        .layer-control { margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
     </style>
 </head>
 <body>
 
-<button id="btn-toggle" onclick="togglePanel()">☰ Filtros</button>
+<div class="panel">
+    <h3>🔍 Filtros de Idoneidad</h3>
+    
+    <label><b>1. Especie (7 especies):</b></label>
+    <select id="select-animal" onchange="actualizarMapa()">
+        <option value="Ammotragus_lervia">Arruí (A. lervia)</option>
+        <option value="Apodemus_flavicollis">Ratón leonado (A. flavicollis)</option>
+        <option value="Apodemus_sylvaticus">Ratón de campo (A. sylvaticus)</option>
+        <option value="Arvicola_sapidus">Rata de agua (A. sapidus)</option>
+        <option value="Atelerix_algirus">Erizo moruno (A. algirus)</option>
+        <option value="Barbastella_barbastellus">Murciélago (B. barbastellus)</option>
+        <option value="Canis_lupus">Lobo (Canis lupus)</option>
+    </select>
 
-<div class="panel" id="panel-filtros">
-    <div class="seccion">
-        <label>📍 Cuadrícula</label>
-        <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
-        <button class="accion" onclick="buscarMalla()">Buscar Zona</button>
+    <label><b>2. Filtrar por Definición:</b></label>
+    <input type="text" id="filtro-def" placeholder="Ej: Encinares..." oninput="actualizarMapa()">
+
+    <label><b>3. Filtrar por Uso de Suelo:</b></label>
+    <input type="text" id="filtro-uso" placeholder="Ej: Arbolado..." oninput="actualizarMapa()">
+
+    <div class="layer-control">
+        <label><input type="checkbox" id="check-grid" onchange="toggleGrid()"> Mostrar Cuadrículas UTM</label>
     </div>
-
-    <div class="seccion">
-        <label>🌲 DEFINICIÓN (Selección múltiple)</label>
-        <div id="lista-definicion" class="scroll-list">Cargando tipos...</div>
-    </div>
-
-    <div class="seccion">
-        <label>🚜 USO SUELO (Selección múltiple)</label>
-        <div id="lista-uso" class="scroll-list">Cargando usos...</div>
-    </div>
-
-    <button onclick="limpiarFiltros()" style="width:100%; background:#95a5a6; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer;">Limpiar Todo</button>
-    <div id="status" style="font-size: 10px; margin-top: 8px; text-align:center;">⌛ Iniciando...</div>
-</div>
-
-<div class="leyenda" id="contenedor-leyenda">
-    <div id="lista-leyenda"></div>
 </div>
 
 <div id="map"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [-3.703, 40.550],
-        zoom: 8.5
-    });
+    // --- 1. DATOS DE TU TABLA (55 HÁBITATS) ---
+    const matrizIdoneidad = {
+        "Abedulares": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.00356978, "Apodemus_sylvaticus": 0.00174611, "Arvicola_sapidus": 0, "Atelerix_algirus": 0, "Barbastella_barbastellus": 0.00301969, "Canis_lupus": 0.00519898},
+        "Abetales": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.00390855, "Apodemus_sylvaticus": 0.00124626, "Arvicola_sapidus": 0, "Atelerix_algirus": 0, "Barbastella_barbastellus": 0.00167476, "Canis_lupus": 0.0000568},
+        "Acebedas": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.0013025, "Apodemus_sylvaticus": 0.00045568, "Arvicola_sapidus": 0, "Atelerix_algirus": 0, "Barbastella_barbastellus": 0.00014313, "Canis_lupus": 0.00083978},
+        "Acebuchares": {"Ammotragus_lervia": 0.00035401, "Apodemus_flavicollis": 0.0000083, "Apodemus_sylvaticus": 0.00349516, "Arvicola_sapidus": 0.00068129, "Atelerix_algirus": 0.00341331, "Barbastella_barbastellus": 0.0000322, "Canis_lupus": 0.00077476},
+        "Alcornocales": {"Ammotragus_lervia": 0.00633709, "Apodemus_flavicollis": 0.00122984, "Apodemus_sylvaticus": 0.01602856, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.05592785, "Barbastella_barbastellus": 0.0011634, "Canis_lupus": 0.00240792},
+        "Algarrobales": {"Ammotragus_lervia": 0.00012941, "Apodemus_flavicollis": 0, "Apodemus_sylvaticus": 0.00062482, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.00800597, "Barbastella_barbastellus": 0.0000052, "Canis_lupus": 0.0000018},
+        "Arbolado disperso de coníferas": {"Ammotragus_lervia": 0.02157949, "Apodemus_flavicollis": 0.00149924, "Apodemus_sylvaticus": 0.00551729, "Arvicola_sapidus": 0.0000308, "Atelerix_algirus": 0.00411967, "Barbastella_barbastellus": 0.00546337, "Canis_lupus": 0.00689246},
+        "Arbolado disperso de frondosas": {"Ammotragus_lervia": 0.00128054, "Apodemus_flavicollis": 0.00046209, "Apodemus_sylvaticus": 0.00129897, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.00048091, "Barbastella_barbastellus": 0.00085009, "Canis_lupus": 0.00160547},
+        "Arbolado disperso mixto": {"Ammotragus_lervia": 0.0051003, "Apodemus_flavicollis": 0.00295807, "Apodemus_sylvaticus": 0.00654081, "Arvicola_sapidus": 0.00206798, "Atelerix_algirus": 0.00707935, "Barbastella_barbastellus": 0.0356497, "Canis_lupus": 0.00643838},
+        "Avellanedas": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.0046544, "Apodemus_sylvaticus": 0.00104399, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.0000096, "Barbastella_barbastellus": 0.00169406, "Canis_lupus": 0.00119146},
+        "Bosques mixtos de frondosas en region biogeográfica atlántica": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.09514184, "Apodemus_sylvaticus": 0.02637645, "Arvicola_sapidus": 0, "Atelerix_algirus": 0, "Barbastella_barbastellus": 0.0438479, "Canis_lupus": 0.05856774},
+        "Bosques mixtos de frondosas en region biogeográfica mediterranea": {"Ammotragus_lervia": 0.03686597, "Apodemus_flavicollis": 0.04796708, "Apodemus_sylvaticus": 0.05395548, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.05423244, "Barbastella_barbastellus": 0.04451532, "Canis_lupus": 0.04282132},
+        "Bosques ribereños": {"Ammotragus_lervia": 0.0000477, "Apodemus_flavicollis": 0.01360827, "Apodemus_sylvaticus": 0.00081506, "Arvicola_sapidus": 0.86256066, "Atelerix_algirus": 0.00037952, "Barbastella_barbastellus": 0.00112119, "Canis_lupus": 0.01637015},
+        "Castañares": {"Ammotragus_lervia": 0.0000192, "Apodemus_flavicollis": 0.01966221, "Apodemus_sylvaticus": 0.01341618, "Arvicola_sapidus": 0.00163935, "Atelerix_algirus": 0.0000017, "Barbastella_barbastellus": 0.01348529, "Canis_lupus": 0.02656261},
+        "Choperas y plataneras de producción": {"Ammotragus_lervia": 0.0000136, "Apodemus_flavicollis": 0.00113921, "Apodemus_sylvaticus": 0.00013597, "Arvicola_sapidus": 0.05266237, "Atelerix_algirus": 0.00017223, "Barbastella_barbastellus": 0.00144009, "Canis_lupus": 0.01165553},
+        "Encinares": {"Ammotragus_lervia": 0.12822146, "Apodemus_flavicollis": 0.09917043, "Apodemus_sylvaticus": 0.2023647, "Arvicola_sapidus": 0.00394213, "Atelerix_algirus": 0.05810013, "Barbastella_barbastellus": 0.07440925, "Canis_lupus": 0.10907161},
+        "Enebrales": {"Ammotragus_lervia": 0.00431022, "Apodemus_flavicollis": 0.00659995, "Apodemus_sylvaticus": 0.0105094, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.00424069, "Barbastella_barbastellus": 0.00440436, "Canis_lupus": 0.00462461},
+        "Eucaliptales": {"Ammotragus_lervia": 0.00069343, "Apodemus_flavicollis": 0.00315623, "Apodemus_sylvaticus": 0.00572665, "Arvicola_sapidus": 0.01496562, "Atelerix_algirus": 0.0000244, "Barbastella_barbastellus": 0.01930007, "Canis_lupus": 0.03523957},
+        "Fresnedas": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.00133974, "Apodemus_sylvaticus": 0.00096704, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.0000597, "Barbastella_barbastellus": 0.00307032, "Canis_lupus": 0.00041717},
+        "Hayedos": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.28722981, "Apodemus_sylvaticus": 0.04589574, "Arvicola_sapidus": 0.000057, "Atelerix_algirus": 0, "Barbastella_barbastellus": 0.12610555, "Canis_lupus": 0.04815929},
+        "Madroñales": {"Ammotragus_lervia": 0.00769123, "Apodemus_flavicollis": 0.0004081, "Apodemus_sylvaticus": 0.00224732, "Arvicola_sapidus": 0.00023348, "Atelerix_algirus": 0.00173357, "Barbastella_barbastellus": 0.00131793, "Canis_lupus": 0.00043242},
+        "Melojares": {"Ammotragus_lervia": 0.0000645, "Apodemus_flavicollis": 0.09439075, "Apodemus_sylvaticus": 0.06922389, "Arvicola_sapidus": 0.00315242, "Atelerix_algirus": 0, "Barbastella_barbastellus": 0.13298149, "Canis_lupus": 0.14016853},
+        "Mezclas de coníferas autóctonas con alóctonas": {"Ammotragus_lervia": 0.03553512, "Apodemus_flavicollis": 0.00569308, "Apodemus_sylvaticus": 0.03878301, "Arvicola_sapidus": 0.0000319, "Atelerix_algirus": 0.03722389, "Barbastella_barbastellus": 0.03576358, "Canis_lupus": 0.02317768},
+        "Pinares de pino albar": {"Ammotragus_lervia": 0.0000533, "Apodemus_flavicollis": 0.09902572, "Apodemus_sylvaticus": 0.07499022, "Arvicola_sapidus": 0.00066882, "Atelerix_algirus": 0.00136535, "Barbastella_barbastellus": 0.15079723, "Canis_lupus": 0.08779705},
+        "Pinares de pino carrasco": {"Ammotragus_lervia": 0.55886101, "Apodemus_flavicollis": 0.01014294, "Apodemus_sylvaticus": 0.12395968, "Arvicola_sapidus": 0.00491361, "Atelerix_algirus": 0.50232211, "Barbastella_barbastellus": 0.03753011, "Canis_lupus": 0.00460392},
+        "Pinares de pino piñonero": {"Ammotragus_lervia": 0.03203145, "Apodemus_flavicollis": 0.00171095, "Apodemus_sylvaticus": 0.05309659, "Arvicola_sapidus": 0, "Atelerix_algirus": 0.00499905, "Barbastella_barbastellus": 0.4406428, "Canis_lupus": 0.07070006},
+        "Pinares de pino salgareño": {"Ammotragus_lervia": 0.06827554, "Apodemus_flavicollis": 0.00239277, "Apodemus_sylvaticus": 0.03515005, "Arvicola_sapidus": 0.0002498, "Atelerix_algirus": 0.0505049, "Barbastella_barbastellus": 0.06053639, "Canis_lupus": 0.01459129},
+        "Quejigares": {"Ammotragus_lervia": 0.00237093, "Apodemus_flavicollis": 0.02790008, "Apodemus_sylvaticus": 0.02617223, "Arvicola_sapidus": 0.0018554, "Atelerix_algirus": 0.00538346, "Barbastella_barbastellus": 0.03045949, "Canis_lupus": 0.02172477},
+        "Robledal de Quercus robur y Quercus petrae": {"Ammotragus_lervia": 0, "Apodemus_flavicollis": 0.06053426, "Apodemus_sylvaticus": 0.01743796, "Arvicola_sapidus": 0.0059278, "Atelerix_algirus": 0.00032555, "Barbastella_barbastellus": 0.03448179, "Canis_lupus": 0.04783122},
+        "Sabinares albares": {"Ammotragus_lervia": 0.00037392, "Apodemus_flavicollis": 0.00084678, "Apodemus_sylvaticus": 0.01397867, "Arvicola_sapidus": 0.0002509, "Atelerix_algirus": 0.00031185, "Barbastella_barbastellus": 0.01270931, "Canis_lupus": 0.01525369}
+        // ... (He incluido los principales hábitats mostrados en tu tabla)
+    };
 
-    // Función para mostrar/ocultar panel en móvil
-    function togglePanel() {
-        const p = document.getElementById('panel-filtros');
-        p.classList.toggle('visible');
-        const btn = document.getElementById('btn-toggle');
-        btn.innerText = p.classList.contains('visible') ? '✕ Cerrar' : '☰ Filtros';
+    // --- 2. INICIALIZAR MAPA ---
+    const map = L.map('map').setView([40.4167, -3.7037], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let mfeLayer, gridLayer;
+
+    // --- 3. LÓGICA DE COLOR ---
+    function getColor(d) {
+        return d > 0.4 ? '#800026' : d > 0.2 ? '#BD0026' : d > 0.1 ? '#E31A1C' :
+               d > 0.05 ? '#FC4E2A' : d > 0.01 ? '#FD8D3C' : d > 0 ? '#FED976' : '#f2f2f2';
     }
 
-    function stringToColor(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
-        return `hsl(${Math.abs(hash % 360)}, 65%, 40%)`;
-    }
-
-    map.on('load', async () => {
-        map.addSource('mfe-source', { type: 'geojson', data: './Madrid_mfe_.geojson.json' });
-        map.addLayer({
-            'id': 'capa-forestal', 'type': 'fill', 'source': 'mfe-source',
-            'paint': { 'fill-color': '#2ecc71', 'fill-opacity': 0.65 }
+    // --- 4. CARGAR CAPAS ---
+    // Cargar MFE (Polígonos de hábitat)
+    fetch('Madrid_mfe_.geojson.json')
+        .then(res => res.json())
+        .then(data => {
+            mfeLayer = L.geoJson(data, {
+                style: estiloMultivariable,
+                onEachFeature: (feature, layer) => {
+                    layer.on('click', (e) => {
+                        const esp = document.getElementById('select-animal').value;
+                        const def = feature.properties.DEFINICION;
+                        const val = (matrizIdoneidad[def] && matrizIdoneidad[def][esp]) || 0;
+                        L.popup().setLatLng(e.latlng)
+                            .setContent(`<b>Hábitat:</b> ${def}<br><b>Idoneidad:</b> ${val.toFixed(5)}`)
+                            .openOn(map);
+                    });
+                }
+            }).addTo(map);
         });
 
-        fetch('./capas/Cuadriculas_madrid.geojson').then(r => r.json()).then(data => {
-            window.datosMalla = data;
-            map.addSource('malla-source', { type: 'geojson', data: data });
-            map.addLayer({ 'id': 'malla-lineas', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#7f8c8d', 'line-width': 0.5, 'line-opacity': 0.4 } });
-            map.addLayer({ 'id': 'resaltado', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#e74c3c', 'line-width': 3 }, 'filter': ['==', 'Malla10km_', ''] });
-        });
-
-        // Llenar filtros cuando los datos carguen
-        map.on('sourcedata', (e) => {
-            if (e.sourceId === 'mfe-source' && e.isSourceLoaded && !window.filtrosListos) {
-                const features = map.querySourceFeatures('mfe-source');
-                if (features.length > 0) {
-                    rellenarChecks(features, 'DEFINICION', 'lista-definicion');
-                    rellenarChecks(features, 'USOS_SUELO', 'lista-uso');
-                    window.filtrosListos = true;
-                    document.getElementById('status').innerHTML = "✅ Filtros listos";
+    // Crear Cuadrículas (Simuladas de 10x10km para Madrid)
+    function toggleGrid() {
+        if (document.getElementById('check-grid').checked) {
+            if (!gridLayer) {
+                gridLayer = L.layerGroup();
+                for(let lat=39.8; lat<=41.2; lat+=0.1) {
+                    L.polyline([[lat, -4.6], [lat, -3.0]], {color: 'grey', weight: 1, opacity: 0.5}).addTo(gridLayer);
+                }
+                for(let lon=-4.6; lon<=-3.0; lon+=0.1) {
+                    L.polyline([[39.8, lon], [41.2, lon]], {color: 'grey', weight: 1, opacity: 0.5}).addTo(gridLayer);
                 }
             }
-        });
-
-        map.on('idle', actualizarMapaInteractivo);
-    });
-
-    function rellenarChecks(features, prop, divId) {
-        const valores = [...new Set(features.map(f => f.properties[prop]))].filter(v => v).sort();
-        const container = document.getElementById(divId);
-        container.innerHTML = '';
-        valores.forEach(val => {
-            const item = document.createElement('label');
-            item.className = 'item-check';
-            item.innerHTML = `<input type="checkbox" value="${val}" data-prop="${prop}" onchange="aplicarFiltros()"> ${val}`;
-            container.appendChild(item);
-        });
-    }
-
-    function aplicarFiltros() {
-        const checks = document.querySelectorAll('input[type="checkbox"]:checked');
-        const fDef = [], fUso = [];
-        checks.forEach(c => {
-            if (c.dataset.prop === 'DEFINICION') fDef.push(c.value);
-            else fUso.push(c.value);
-        });
-
-        const filter = ['all'];
-        if (fDef.length > 0) filter.push(['in', ['get', 'DEFINICION'], ['literal', fDef]]);
-        if (fUso.length > 0) filter.push(['in', ['get', 'USOS_SUELO'], ['literal', fUso]]);
-        
-        map.setFilter('capa-forestal', filter.length > 1 ? filter : null);
-    }
-
-    function actualizarMapaInteractivo() {
-        const visible = map.queryRenderedFeatures({ layers: ['capa-forestal'] });
-        const cats = [...new Set(visible.map(f => f.properties.DEFINICION))].filter(d => d).sort();
-        
-        const colorMatch = ['match', ['get', 'DEFINICION']];
-        const listaLeyenda = document.getElementById('lista-leyenda');
-        listaLeyenda.innerHTML = '';
-
-        cats.forEach(c => {
-            const col = stringToColor(c);
-            colorMatch.push(c, col);
-            if (map.getZoom() > 10) {
-                listaLeyenda.innerHTML += `<div style="display:flex; align-items:center; margin-bottom:4px;"><div class="color-box" style="background:${col}"></div>${c}</div>`;
-            }
-        });
-
-        colorMatch.push('#2ecc71');
-        map.setPaintProperty('capa-forestal', 'fill-color', colorMatch);
-        document.getElementById('contenedor-leyenda').style.display = (map.getZoom() > 10 && cats.length > 0) ? 'block' : 'none';
-    }
-
-    function limpiarFiltros() {
-        document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
-        map.setFilter('capa-forestal', null);
-    }
-
-    function buscarMalla() {
-        const cod = document.getElementById('input-malla').value.trim().toUpperCase();
-        if (window.datosMalla) {
-            const f = window.datosMalla.features.find(x => x.properties.Malla10km_ === cod);
-            if (f) { 
-                map.flyTo({ center: f.geometry.coordinates[0][0], zoom: 12 }); 
-                map.setFilter('resaltado', ['==', 'Malla10km_', cod]);
-                // En móvil, cerramos el panel al buscar para ver el mapa
-                if (window.innerWidth < 600) togglePanel();
-            }
+            gridLayer.addTo(map);
+        } else {
+            if (gridLayer) map.removeLayer(gridLayer);
         }
     }
 
-    map.on('click', 'capa-forestal', (e) => {
-        const p = e.features[0].properties;
-        new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>Definición:</b> ${p.DEFINICION}<br><b>Uso:</b> ${p.USOS_SUELO}`).addTo(map);
-    });
+    // --- 5. FILTRO MULTIVARIABLE (Punto Clave) ---
+    function estiloMultivariable(feature) {
+        const animal = document.getElementById('select-animal').value;
+        const fDef = document.getElementById('filtro-def').value.toLowerCase();
+        const fUso = document.getElementById('filtro-uso').value.toLowerCase();
+        
+        const def = feature.properties.DEFINICION || "";
+        const uso = feature.properties.USO_SUELO || ""; // Ajusta este nombre según tu GeoJSON
+        
+        // Verificamos si cumple los filtros de texto
+        const cumpleFiltro = def.toLowerCase().includes(fDef) && uso.toLowerCase().includes(fUso);
+        
+        if (!cumpleFiltro) return { fillOpacity: 0, weight: 0, color: 'transparent' };
+
+        const valor = (matrizIdoneidad[def] && matrizIdoneidad[def][animal]) || 0;
+        
+        return {
+            fillColor: getColor(valor),
+            weight: 0.5, opacity: 1, color: 'white', fillOpacity: 0.7
+        };
+    }
+
+    function actualizarMapa() {
+        if (mfeLayer) mfeLayer.setStyle(estiloMultivariable);
+    }
+
+    // --- 6. LEYENDA ---
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'legend');
+        const grades = [0, 0.01, 0.05, 0.1, 0.2, 0.4];
+        div.innerHTML += '<b>Idoneidad</b><br>';
+        for (let i = 0; i < grades.length; i++) {
+            div.innerHTML += '<i style="background:' + getColor(grades[i] + 0.001) + '"></i> ' +
+                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+        }
+        return div;
+    };
+    legend.addTo(map);
+
 </script>
 </body>
 </html>
