@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor Forestal TFG - Madrid (Móvil Ready)</title>
+    <title>Visor Forestal TFG - Madrid (Especies y Hábitats)</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
@@ -10,23 +10,20 @@
         body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* BOTÓN PARA MÓVIL */
         #btn-toggle {
             position: absolute; top: 10px; left: 10px; z-index: 20;
             background: #27ae60; color: white; border: none; padding: 12px 15px;
             border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            display: none; /* Se activa solo en pantallas pequeñas vía Media Query */
+            display: none;
         }
 
-        /* PANEL DE CONTROL */
         .panel {
             position: absolute; top: 10px; left: 10px; z-index: 15;
             background: white; padding: 15px; border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 280px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 290px;
             max-height: 85vh; overflow-y: auto; transition: transform 0.3s ease;
         }
 
-        /* SECCIONES Y LISTAS */
         .seccion { margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         label { display: block; font-weight: bold; font-size: 11px; color: #1a5e37; margin-bottom: 5px; text-transform: uppercase; }
         
@@ -37,28 +34,22 @@
         .item-check { display: flex; align-items: center; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
         .item-check input { width: 18px; height: 18px; margin-right: 10px; }
 
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         button.accion { width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         
-        /* LEYENDA */
         .leyenda {
             position: absolute; bottom: 20px; right: 10px; z-index: 10;
             background: rgba(255,255,255,0.95); padding: 10px; border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2); width: 200px;
-            display: none; max-height: 200px; overflow-y: auto; font-size: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); width: 220px;
+            display: none; max-height: 250px; overflow-y: auto; font-size: 10px;
         }
-        .color-box { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; flex-shrink: 0; }
+        .color-row { display: flex; align-items: center; margin-bottom: 4px; }
+        .color-box { width: 14px; height: 14px; margin-right: 8px; border-radius: 2px; flex-shrink: 0; }
 
-        /* AJUSTES PARA PANTALLAS PEQUEÑAS (MÓVILES) */
         @media (max-width: 600px) {
-            #btn-toggle { display: block; } /* Mostrar botón */
-            .panel { 
-                width: calc(100% - 40px); 
-                top: 60px; 
-                transform: translateX(-120%); /* Esconder panel por defecto */
-            }
-            .panel.visible { transform: translateX(0); } /* Mostrar al pulsar */
-            .leyenda { width: 150px; bottom: 10px; }
+            #btn-toggle { display: block; }
+            .panel { width: calc(100% - 40px); top: 60px; transform: translateX(-120%); }
+            .panel.visible { transform: translateX(0); }
         }
     </style>
 </head>
@@ -68,19 +59,33 @@
 
 <div class="panel" id="panel-filtros">
     <div class="seccion">
+        <label>🐾 Idoneidad de Fauna</label>
+        <select id="select-especie" onchange="actualizarMapaInteractivo()">
+            <option value="">-- Ver Formaciones (Sin fauna) --</option>
+            <option value="ammotragus_lervia">Ammotragus lervia (Arruí)</option>
+            <option value="demus_flavic">Apodemus flavicollis (Ratón leonado)</option>
+            <option value="apodemus_sylvaticus">Apodemus sylvaticus (Ratón de campo)</option>
+            <option value="arvicola_sapidus">Arvicola sapidus (Rata de agua)</option>
+            <option value="atelerix_algirus">Atelerix algirus (Erizo moruno)</option>
+            <option value="barbastella_barbastellus">Barbastella barbastellus (Murciélago)</option>
+            <option value="canis_lupus">Canis lupus (Lobo)</option>
+        </select>
+    </div>
+
+    <div class="seccion">
         <label>📍 Cuadrícula</label>
         <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
         <button class="accion" onclick="buscarMalla()">Buscar Zona</button>
     </div>
 
     <div class="seccion">
-        <label>🌲 DEFINICIÓN (Selección múltiple)</label>
-        <div id="lista-definicion" class="scroll-list">Cargando tipos...</div>
+        <label>🌲 NOM_FORARB (Múltiple)</label>
+        <div id="lista-forarb" class="scroll-list">Cargando...</div>
     </div>
 
     <div class="seccion">
-        <label>🚜 USO SUELO (Selección múltiple)</label>
-        <div id="lista-uso" class="scroll-list">Cargando usos...</div>
+        <label>🚜 USO SUELO (Múltiple)</label>
+        <div id="lista-uso" class="scroll-list">Cargando...</div>
     </div>
 
     <button onclick="limpiarFiltros()" style="width:100%; background:#95a5a6; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer;">Limpiar Todo</button>
@@ -88,12 +93,47 @@
 </div>
 
 <div class="leyenda" id="contenedor-leyenda">
+    <div id="titulo-leyenda" style="font-weight:bold; margin-bottom:8px; border-bottom:1px solid #ccc;"></div>
     <div id="lista-leyenda"></div>
 </div>
 
 <div id="map"></div>
 
 <script>
+    // MATRIZ DE DATOS EXTRAÍDA DE TU EXCEL
+    const matriz = {
+        "Acebedas": { "ammotragus_lervia": 0, "demus_flavic": 0.00130, "apodemus_sylvaticus": 0.00045, "arvicola_sapidus": 0, "atelerix_algirus": 0, "barbastella_barbastellus": 0.00014, "canis_lupus": 0.00083 },
+        "Acebuchares": { "ammotragus_lervia": 0.00035, "demus_flavic": 0.000008, "apodemus_sylvaticus": 0.00349, "arvicola_sapidus": 0.00068, "atelerix_algirus": 0.00341, "barbastella_barbastellus": 0.00003, "canis_lupus": 0.00077 },
+        "Alcornocales": { "ammotragus_lervia": 0.00633, "demus_flavic": 0.00122, "apodemus_sylvaticus": 0.01602, "arvicola_sapidus": 0, "atelerix_algirus": 0.05592, "barbastella_barbastellus": 0.00116, "canis_lupus": 0.00240 },
+        "Arbolado disperso de coníferas": { "ammotragus_lervia": 0.02157, "demus_flavic": 0.00149, "apodemus_sylvaticus": 0.00551, "arvicola_sapidus": 0.00003, "atelerix_algirus": 0.00411, "barbastella_barbastellus": 0.00546, "canis_lupus": 0.00689 },
+        "Arbolado disperso coníferas y frondosas": { "ammotragus_lervia": 0.00128, "demus_flavic": 0.00046, "apodemus_sylvaticus": 0.00129, "arvicola_sapidus": 0, "atelerix_algirus": 0.00048, "barbastella_barbastellus": 0.00085, "canis_lupus": 0.00160 },
+        "Arbolado disperso de frondosas": { "ammotragus_lervia": 0.00510, "demus_flavic": 0.00295, "apodemus_sylvaticus": 0.00654, "arvicola_sapidus": 0.00206, "atelerix_algirus": 0.00707, "barbastella_barbastellus": 0.00356, "canis_lupus": 0.00643 },
+        "Bosques mixtos de frondosas en region biogeográfica mediterranea": { "ammotragus_lervia": 0.03686, "demus_flavic": 0.04796, "apodemus_sylvaticus": 0.05395, "arvicola_sapidus": 0, "atelerix_algirus": 0.05423, "barbastella_barbastellus": 0.04451, "canis_lupus": 0.04282 },
+        "Bosques ribereños": { "ammotragus_lervia": 0.00004, "demus_flavic": 0.01360, "apodemus_sylvaticus": 0.00081, "arvicola_sapidus": 0.86256, "atelerix_algirus": 0.00037, "barbastella_barbastellus": 0.00112, "canis_lupus": 0.01637 },
+        "Castañares": { "ammotragus_lervia": 0.00001, "demus_flavic": 0.01966, "apodemus_sylvaticus": 0.01341, "arvicola_sapidus": 0.00163, "atelerix_algirus": 0.00001, "barbastella_barbastellus": 0.01348, "canis_lupus": 0.02656 },
+        "Choperas y plataneras de producción": { "ammotragus_lervia": 0.00001, "demus_flavic": 0.00113, "apodemus_sylvaticus": 0.00013, "arvicola_sapidus": 0.05266, "atelerix_algirus": 0.00017, "barbastella_barbastellus": 0.00144, "canis_lupus": 0.01165 },
+        "Coníferas alóctonas de gestión (Cupressus sp, otros pinos, etc.)": { "ammotragus_lervia": 0, "demus_flavic": 0.000002, "apodemus_sylvaticus": 0.000005, "arvicola_sapidus": 0, "atelerix_algirus": 0.000005, "barbastella_barbastellus": 0.00003, "canis_lupus": 0.00008 },
+        "Encinares": { "ammotragus_lervia": 0.12822, "demus_flavic": 0.09917, "apodemus_sylvaticus": 0.20236, "arvicola_sapidus": 0.00394, "atelerix_algirus": 0.05810, "barbastella_barbastellus": 0.07440, "canis_lupus": 0.10907 },
+        "Enebrales": { "ammotragus_lervia": 0.00431, "demus_flavic": 0.00659, "apodemus_sylvaticus": 0.01050, "arvicola_sapidus": 0, "atelerix_algirus": 0.00424, "barbastella_barbastellus": 0.00440, "canis_lupus": 0.00462 },
+        "Fresnedas": { "ammotragus_lervia": 0, "demus_flavic": 0.00133, "apodemus_sylvaticus": 0.00096, "arvicola_sapidus": 0, "atelerix_algirus": 0.00005, "barbastella_barbastellus": 0.00307, "canis_lupus": 0.00041 },
+        "Frondosas alóctonas con autóctonas": { "ammotragus_lervia": 0.00003, "demus_flavic": 0.00381, "apodemus_sylvaticus": 0.00284, "arvicola_sapidus": 0.02229, "atelerix_algirus": 0.00002, "barbastella_barbastellus": 0.00326, "canis_lupus": 0.00502 },
+        "Frondosas alóctonas invasoras": { "ammotragus_lervia": 0, "demus_flavic": 0.00011, "apodemus_sylvaticus": 0.00007, "arvicola_sapidus": 0.00257, "atelerix_algirus": 0.00001, "barbastella_barbastellus": 0.00005, "canis_lupus": 0.00017 },
+        "Hayedos": { "ammotragus_lervia": 0, "demus_flavic": 0.28722, "apodemus_sylvaticus": 0.04589, "arvicola_sapidus": 0.00005, "atelerix_algirus": 0, "barbastella_barbastellus": 0.12610, "canis_lupus": 0.04815 },
+        "Melojares": { "ammotragus_lervia": 0.00006, "demus_flavic": 0.09439, "apodemus_sylvaticus": 0.06922, "arvicola_sapidus": 0.00315, "atelerix_algirus": 0, "barbastella_barbastellus": 0.13298, "canis_lupus": 0.14016 },
+        "Mezclas de coníferas autóctonas con alóctonas": { "ammotragus_lervia": 0, "demus_flavic": 0.00030, "apodemus_sylvaticus": 0.00008, "arvicola_sapidus": 0, "atelerix_algirus": 0.00009, "barbastella_barbastellus": 0.00065, "canis_lupus": 0.00180 },
+        "Mezclas de coníferas autóctonas en la región biogeográfica Mediterránea": { "ammotragus_lervia": 0.03553, "demus_flavic": 0.00569, "apodemus_sylvaticus": 0.03878, "arvicola_sapidus": 0.00003, "atelerix_algirus": 0.03722, "barbastella_barbastellus": 0.03576, "canis_lupus": 0.02317 },
+        "Mezclas de coníferas y frondosas autóctonas en la región biogeográfica mediterránea": { "ammotragus_lervia": 0.07815, "demus_flavic": 0.04082, "apodemus_sylvaticus": 0.07552, "arvicola_sapidus": 0.01703, "atelerix_algirus": 0.13938, "barbastella_barbastellus": 0.04885, "canis_lupus": 0.03570 },
+        "Otras especies de producción en Mezclas": { "ammotragus_lervia": 0.00012, "demus_flavic": 0.00088, "apodemus_sylvaticus": 0.00323, "arvicola_sapidus": 0.00021, "atelerix_algirus": 0.00062, "barbastella_barbastellus": 0.00358, "canis_lupus": 0.02423 },
+        "Pinares de pino albar": { "ammotragus_lervia": 0.00005, "demus_flavic": 0.09902, "apodemus_sylvaticus": 0.07499, "arvicola_sapidus": 0.00066, "atelerix_algirus": 0.00136, "barbastella_barbastellus": 0.15079, "canis_lupus": 0.08779 },
+        "Pinares de pino carrasco": { "ammotragus_lervia": 0.55886, "demus_flavic": 0.01014, "apodemus_sylvaticus": 0.12395, "arvicola_sapidus": 0.00491, "atelerix_algirus": 0.50232, "barbastella_barbastellus": 0.03753, "canis_lupus": 0.00460 },
+        "Pinares de pino negro": { "ammotragus_lervia": 0, "demus_flavic": 0.01070, "apodemus_sylvaticus": 0.00941, "arvicola_sapidus": 0, "atelerix_algirus": 0, "barbastella_barbastellus": 0.00547, "canis_lupus": 0.00511 },
+        "Pinares de pino pinaster en región mediterránea (P.pinaster ssp. mesogeensis)": { "ammotragus_lervia": 0.03203, "demus_flavic": 0.00171, "apodemus_sylvaticus": 0.05309, "arvicola_sapidus": 0, "atelerix_algirus": 0.00499, "barbastella_barbastellus": 0.04406, "canis_lupus": 0.07070 },
+        "Pinares de pino piñonero": { "ammotragus_lervia": 0.00426, "demus_flavic": 0.00202, "apodemus_sylvaticus": 0.02259, "arvicola_sapidus": 0, "atelerix_algirus": 0.04510, "barbastella_barbastellus": 0.00084, "canis_lupus": 0.02914 },
+        "Pinares de pino salgareño": { "ammotragus_lervia": 0.06827, "demus_flavic": 0.00239, "apodemus_sylvaticus": 0.03515, "arvicola_sapidus": 0.00024, "atelerix_algirus": 0.05050, "barbastella_barbastellus": 0.06053, "canis_lupus": 0.01459 },
+        "Quejigares": { "ammotragus_lervia": 0.00237, "demus_flavic": 0.02790, "apodemus_sylvaticus": 0.02617, "arvicola_sapidus": 0.00185, "atelerix_algirus": 0.00538, "barbastella_barbastellus": 0.03045, "canis_lupus": 0.02172 },
+        "Sabinares de Juniperus phoenicia": { "ammotragus_lervia": 0.00704, "demus_flavic": 0.00005, "apodemus_sylvaticus": 0.00380, "arvicola_sapidus": 0.00005, "atelerix_algirus": 0.00165, "barbastella_barbastellus": 0.00093, "canis_lupus": 0.00012 }
+    };
+
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
@@ -101,12 +141,20 @@
         zoom: 8.5
     });
 
-    // Función para mostrar/ocultar panel en móvil
     function togglePanel() {
         const p = document.getElementById('panel-filtros');
         p.classList.toggle('visible');
-        const btn = document.getElementById('btn-toggle');
-        btn.innerText = p.classList.contains('visible') ? '✕ Cerrar' : '☰ Filtros';
+    }
+
+    // GRADIENTE TÉRMICO (YlOrRd - Amarillo a Rojo)
+    function getColorIdoneidad(val) {
+        return val > 0.1 ? '#800026' : 
+               val > 0.05 ? '#BD0026' :
+               val > 0.02 ? '#E31A1C' :
+               val > 0.01 ? '#FC4E2A' :
+               val > 0.005 ? '#FD8D3C' :
+               val > 0.001 ? '#FEB24C' :
+               val > 0 ? '#FFEDA0' : '#f2f2f2';
     }
 
     function stringToColor(str) {
@@ -119,9 +167,10 @@
         map.addSource('mfe-source', { type: 'geojson', data: './Madrid_mfe_.geojson.json' });
         map.addLayer({
             'id': 'capa-forestal', 'type': 'fill', 'source': 'mfe-source',
-            'paint': { 'fill-color': '#2ecc71', 'fill-opacity': 0.65 }
+            'paint': { 'fill-color': '#2ecc71', 'fill-opacity': 0.7 }
         });
 
+        // Capa de mallas
         fetch('./capas/Cuadriculas_madrid.geojson').then(r => r.json()).then(data => {
             window.datosMalla = data;
             map.addSource('malla-source', { type: 'geojson', data: data });
@@ -129,12 +178,11 @@
             map.addLayer({ 'id': 'resaltado', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#e74c3c', 'line-width': 3 }, 'filter': ['==', 'Malla10km_', ''] });
         });
 
-        // Llenar filtros cuando los datos carguen
         map.on('sourcedata', (e) => {
             if (e.sourceId === 'mfe-source' && e.isSourceLoaded && !window.filtrosListos) {
                 const features = map.querySourceFeatures('mfe-source');
                 if (features.length > 0) {
-                    rellenarChecks(features, 'DEFINICION', 'lista-definicion');
+                    rellenarChecks(features, 'NOM_FORARB', 'lista-forarb');
                     rellenarChecks(features, 'USOS_SUELO', 'lista-uso');
                     window.filtrosListos = true;
                     document.getElementById('status').innerHTML = "✅ Filtros listos";
@@ -159,43 +207,56 @@
 
     function aplicarFiltros() {
         const checks = document.querySelectorAll('input[type="checkbox"]:checked');
-        const fDef = [], fUso = [];
+        const fForarb = [], fUso = [];
         checks.forEach(c => {
-            if (c.dataset.prop === 'DEFINICION') fDef.push(c.value);
-            else fUso.push(c.value);
+            if (c.dataset.prop === 'NOM_FORARB') fForarb.push(c.value);
+            else if (c.dataset.prop === 'USOS_SUELO') fUso.push(c.value);
         });
 
         const filter = ['all'];
-        if (fDef.length > 0) filter.push(['in', ['get', 'DEFINICION'], ['literal', fDef]]);
+        if (fForarb.length > 0) filter.push(['in', ['get', 'NOM_FORARB'], ['literal', fForarb]]);
         if (fUso.length > 0) filter.push(['in', ['get', 'USOS_SUELO'], ['literal', fUso]]);
         
         map.setFilter('capa-forestal', filter.length > 1 ? filter : null);
     }
 
     function actualizarMapaInteractivo() {
+        const esp = document.getElementById('select-especie').value;
         const visible = map.queryRenderedFeatures({ layers: ['capa-forestal'] });
-        const cats = [...new Set(visible.map(f => f.properties.DEFINICION))].filter(d => d).sort();
+        const cats = [...new Set(visible.map(f => f.properties.NOM_FORARB))].filter(d => d).sort();
         
-        const colorMatch = ['match', ['get', 'DEFINICION']];
+        const colorMatch = ['match', ['get', 'NOM_FORARB']];
         const listaLeyenda = document.getElementById('lista-leyenda');
+        const tituloLeyenda = document.getElementById('titulo-leyenda');
         listaLeyenda.innerHTML = '';
 
-        cats.forEach(c => {
-            const col = stringToColor(c);
-            colorMatch.push(c, col);
-            if (map.getZoom() > 10) {
-                listaLeyenda.innerHTML += `<div style="display:flex; align-items:center; margin-bottom:4px;"><div class="color-box" style="background:${col}"></div>${c}</div>`;
-            }
-        });
+        if (esp) {
+            // MODO FAUNA
+            tituloLeyenda.innerText = "Idoneidad: " + esp.toUpperCase();
+            const ranges = [0, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1];
+            ranges.forEach(r => {
+                listaLeyenda.innerHTML += `<div class="color-row"><div class="color-box" style="background:${getColorIdoneidad(r + 0.0001)}"></div> > ${r}</div>`;
+            });
 
-        colorMatch.push('#2ecc71');
+            cats.forEach(c => {
+                const val = (matriz[c] && matriz[c][esp]) || 0;
+                colorMatch.push(c, getColorIdoneidad(val));
+            });
+        } else {
+            // MODO FORESTAL
+            tituloLeyenda.innerText = "Formaciones (NOM_FORARB)";
+            cats.forEach(c => {
+                const col = stringToColor(c);
+                colorMatch.push(c, col);
+                if (map.getZoom() > 10) {
+                    listaLeyenda.innerHTML += `<div class="color-row"><div class="color-box" style="background:${col}"></div>${c}</div>`;
+                }
+            });
+        }
+
+        colorMatch.push('#f2f2f2');
         map.setPaintProperty('capa-forestal', 'fill-color', colorMatch);
-        document.getElementById('contenedor-leyenda').style.display = (map.getZoom() > 10 && cats.length > 0) ? 'block' : 'none';
-    }
-
-    function limpiarFiltros() {
-        document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
-        map.setFilter('capa-forestal', null);
+        document.getElementById('contenedor-leyenda').style.display = (cats.length > 0) ? 'block' : 'none';
     }
 
     function buscarMalla() {
@@ -205,15 +266,26 @@
             if (f) { 
                 map.flyTo({ center: f.geometry.coordinates[0][0], zoom: 12 }); 
                 map.setFilter('resaltado', ['==', 'Malla10km_', cod]);
-                // En móvil, cerramos el panel al buscar para ver el mapa
-                if (window.innerWidth < 600) togglePanel();
             }
         }
     }
 
+    function limpiarFiltros() {
+        document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+        document.getElementById('select-especie').value = "";
+        map.setFilter('capa-forestal', null);
+        actualizarMapaInteractivo();
+    }
+
     map.on('click', 'capa-forestal', (e) => {
         const p = e.features[0].properties;
-        new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>Definición:</b> ${p.DEFINICION}<br><b>Uso:</b> ${p.USOS_SUELO}`).addTo(map);
+        const esp = document.getElementById('select-especie').value;
+        let idonHTML = "";
+        if (esp) {
+            const val = (matriz[p.NOM_FORARB] && matriz[p.NOM_FORARB][esp]) || 0;
+            idonHTML = `<br><b>Idoneidad (${esp}):</b> ${val}`;
+        }
+        new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>Formación:</b> ${p.NOM_FORARB}<br><b>Uso:</b> ${p.USOS_SUELO}${idonHTML}`).addTo(map);
     });
 </script>
 </body>
