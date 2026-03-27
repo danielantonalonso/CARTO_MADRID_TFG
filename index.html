@@ -9,38 +9,20 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
         .indicador {
             position: absolute; top: 10px; left: 10px; z-index: 10;
             background: white; padding: 12px; border-radius: 8px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
-            width: 220px;
+            font-family: sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            width: 240px;
         }
-
-        /* Estilos del Pop-up */
-        .maplibre-gl-popup-content {
-            padding: 15px;
-            border-radius: 10px;
-            font-family: sans-serif;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        .popup-header { 
-            font-weight: bold; 
-            color: #1a5e37; 
-            border-bottom: 1px solid #eee; 
-            margin-bottom: 8px; 
-            padding-bottom: 4px;
-        }
-        .popup-label { font-weight: bold; color: #555; font-size: 11px; text-transform: uppercase; }
-        .popup-value { font-size: 13px; margin-bottom: 10px; color: #333; }
+        #msg { font-size: 12px; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="indicador">
-    <strong style="color: #2c3e50; font-size: 14px;">Visor MFE - Madrid</strong>
-    <p id="msg" style="margin: 8px 0 0 0; font-size: 11px; color: #666;">Cargando teselas...</p>
+    <div style="color: #2c3e50; font-weight: bold;">Visor Forestal TFG</div>
+    <div id="msg" style="color: #e67e22;">⏳ Intentando conectar con el archivo...</div>
 </div>
 
 <div id="map"></div>
@@ -49,22 +31,66 @@
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [-3.703, 40.550], // Ajustado un poco más al norte para centrar mejor la CAM
-        zoom: 8.8 // Zoom ideal para ver la provincia completa
+        center: [-3.703, 40.550],
+        zoom: 8.5
     });
 
-    map.on('load', () => {
+    map.on('load', async () => {
+        const msg = document.getElementById('msg');
         
-        map.addSource('mfe-source', {
-            type: 'geojson',
-            // REVISA: Si cambiaste el nombre al comprimir, ponlo igual aquí:
-            data: './Madrid_mfe_.geojson.json' 
-        });
+        // --- VERIFICACIÓN DE ARCHIVO ---
+        try {
+            // Cambiamos la ruta a una más directa: 'Madrid_mfe_.geojson.json'
+            // SI CAMBIASTE EL NOMBRE AL COMPRIMIR, CAMBIA ESTA LÍNEA:
+            const nombreArchivo = 'Madrid_mfe_.geojson.json'; 
+            
+            const response = await fetch(nombreArchivo);
+            if (!response.ok) throw new Error("Archivo no encontrado en el servidor");
+            
+            const data = await response.json();
+            msg.innerHTML = "📦 Archivo recibido. Dibujando...";
 
-        map.addLayer({
-            'id': 'capa-forestal',
-            'type': 'fill',
-            'source': 'mfe-source',
-            'paint': {
-                'fill-color': '#2ecc71',
-                'fill-opacity': 0
+            map.addSource('mfe-source', {
+                type: 'geojson',
+                data: data
+            });
+
+            map.addLayer({
+                'id': 'capa-forestal',
+                'type': 'fill',
+                'source': 'mfe-source',
+                'paint': {
+                    'fill-color': '#2ecc71',
+                    'fill-opacity': 0.5,
+                    'fill-outline-color': '#27ae60'
+                }
+            });
+
+            msg.innerHTML = "✅ Capas cargadas. Clica para info.";
+            msg.style.color = "#27ae60";
+
+            // Eventos de Pop-up
+            map.on('click', 'capa-forestal', (e) => {
+                const p = e.features[0].properties;
+                const def = p.DEFINICION || p.definicion || 'Sin definición';
+                const uso = p.USOS_SUELO || p.usos_suelo || 'Sin usos';
+
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(`<b>Definición:</b> ${def}<br><b>Usos:</b> ${uso}`)
+                    .addTo(map);
+            });
+
+            map.on('mouseenter', 'capa-forestal', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', 'capa-forestal', () => { map.getCanvas().style.cursor = ''; });
+
+        } catch (error) {
+            msg.innerHTML = "❌ ERROR: " + error.message;
+            msg.style.color = "#c0392b";
+            console.error(error);
+        }
+    });
+</script>
+
+</body>
+</html>
