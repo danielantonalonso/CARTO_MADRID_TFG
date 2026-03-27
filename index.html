@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>Visor TFG Forestal - Madrid</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    
+    <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        /* Estilo para el cajetín de búsqueda floating */
+        .titulo {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 280px;
+            border: 1px solid #ddd;
+        }
+        h3 { margin: 0 0 10px 0; color: #2c3e50; font-size: 18px; }
+        p { font-size: 13px; color: #7f8c8d; margin: 0 0 10px 0; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; font-size: 14px; }
+        button { width: 100%; cursor: pointer; background: #27ae60; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        button:hover { background: #219150; }
+        
+        /* Loader simple por si tarda en cargar */
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 8px;
+            z-index: 100; display: none; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loader">Cargando datos forestales... (paciencia, son grandes)</div>
+
+<div class="titulo">
+    <h3>Visor Forestal TFG</h3>
+    <p>Introduce el código de malla para centrar el mapa:</p>
+    <input type="text" id="buscador-codigo" placeholder="Ej: 30TVK42...">
+    <button onclick="buscarCuadricula()">🔍 Buscar y Centrar Malla</button>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // 1. Configuración del mapa base (Calles y fondo neutro)
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+        center: [-3.703, 40.416], // Centro de Madrid
+        zoom: 8.5 // Zoom inicial para ver la provincia
+    });
+
+    // Mostramos el loader mientras cargan los datos
+    const loader = document.getElementById('loader');
+    loader.style.display = 'block';
+
+    map.on('load', () => {
+        // --- CAPA 1: MAPA FORESTAL DE MADRID (Fondo verde) ---
+        map.addSource('forestal-source', {
+            type: 'geojson',
+            // OJO: Asegúrate de que este nombre sea EXACTO al de tu archivo en GitHub
+            data: './capas/Madrid_mfe.geojson' 
+        });
+
+        map.addLayer({
+            'id': 'capa-forestal',
+            'type': 'fill',
+            'source': 'forestal-source',
+            'paint': {
+                'fill-color': '#2dcc71', // Verde forestal suave
+                'fill-opacity': 0.5, // Transparencia para ver el mapa base debajo
+                'fill-outline-color': '#219150'
+            }
+        });
+
+        // --- CAPA 2: CUADRÍCULAS DE MADRID (Líneas grises) ---
+        map.addSource('malla-source', {
+            type: 'geojson',
+            // OJO: Asegúrate de que este nombre sea EXACTO al de tu archivo en GitHub
+            data: './capas/Cuadriculas_madrid.geojson'
+        });
+
+        // Dibujamos el relleno de las cuadrículas (casi invisible para detectar clics)
+        map.addLayer({
+            'id': 'capa-malla-relleno',
+            'type': 'fill',
+            'source': 'malla-source',
+            'paint': {
+                'fill-color': 'rgba(0,0,0,0)' // Totalmente transparente
+            }
+        });
+
+        // Dibujamos las líneas de la malla
+        map.addLayer({
+            'id': 'capa-malla-lineas',
+            'type': 'line',
+            'source': 'malla-source',
+            'paint': {
+                'line-color': '#7f8c8d', // Gris suave
+                'line-width': 1,
+                'line-opacity': 0.8
+            }
+        });
+
+        // --- CAPA 3: RESALTADO DE BÚSQUEDA (Línea roja gruesa) ---
+        map.addLayer({
+            'id': 'capa-resaltado',
+            'type': 'line',
+            'source': 'malla-source',
+            'paint': {
+                'line-color': '#e74c3c', // Rojo intenso
+                'line-width': 4
+            },
+            // Filtro inicial: no muestra nada hasta que busquemos
+            'filter': ['==', 'Malla10km_', ''] 
+        });
+
+        // Ocultamos el loader cuando todo ha cargado
+        loader.style.display = 'none';
+
+        // Evento opcional: Al hacer clic en una cuadrícula, mostrar su código en un Popup
+        map.on('click', 'capa-malla-relleno', (e) => {
+            const feature = e.features[0];
+            if (feature) {
+                const codigo = feature.properties.Malla10km_;
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(`<strong>Código Malla:</strong> ${codigo}`)
+                    .addTo(map);
+                
+                // También la resaltamos al hacer clic
+                map.setFilter('capa-resaltado', ['==', 'Malla10km_', codigo]);
+            }
+        });
+        
+        // Cambiar el cursor al pasar por las cuadrículas
+        map.on('mouseenter', 'capa-malla-relleno', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'capa-malla-relleno', () => map.getCanvas().style.cursor = '');
+    });
+
+    // --- FUNCIÓN DEL BUSCADOR ---
+    function buscarCuadricula() {
+        // Obtenemos el valor y quitamos espacios en blanco
+        const valorInput = document.getElementById('buscador-codigo').value.trim();
+        
+        if (!valorInput) {
+            alert("Por favor, escribe un código de malla.");
+            return;
+        }
+
+        // Buscamos la cuadrícula en los datos CARGADOS en el mapa
+        const features = map.querySourceFeatures('malla-source', {
+            sourceLayer: 'capa-malla-lineas'
+        });
+
+        // IMPORTANTE: Buscamos el elemento que coincida EXACTAMENTE con el código
+        const encontrada = features.find(f => f.properties.Malla10km_ === valorInput);
+
+        if (encontrada) {
+            // Calculamos el centro aproximado de la geometría
+            // Esto asume que es un Polígono y toma el primer punto
+            const coord = encontrada.geometry.coordinates[0][0];
+            
+            // Volamos a la cuadrícula
+            map.flyTo({
+                center: coord,
+                zoom: 12, // Zoom intermedio para ver la zona
+                essential: true // Para animaciones suaves
+            });
+
+            // Resaltamos la cuadrícula en el mapa (Capa 3)
+            map.setFilter('capa-resaltado', ['==', 'Malla10km_', valorInput]);
+            
+            // Opcional: Popup informativo automático al buscar
+            new maplibregl.Popup()
+                .setLngLat(coord)
+                .setHTML(`<strong>Encontrada:</strong> ${valorInput}`)
+                .addTo(map);
+
+        } else {
+            // Si no la encuentra, damos un mensaje claro
+            alert(`No se encontró la cuadrícula: "${valorInput}"\nVerifica que el código sea exacto (mayúsculas, guiones, etc.).`);
+        }
+    }
+</script>
+
+</body>
+</html>
