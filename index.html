@@ -2,62 +2,63 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor Forestal TFG - Filtro Avanzado</title>
+    <title>Visor Forestal TFG - Filtro Multivariable</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* Panel de Control Izquierdo */
+        /* Panel Lateral Izquierdo */
         .panel {
             position: absolute; top: 10px; left: 10px; z-index: 10;
-            background: white; padding: 20px; border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 260px;
+            background: white; padding: 15px; border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.15); width: 280px;
+            max-height: 90vh; overflow-y: auto;
         }
-        .seccion { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
-        .seccion:last-child { border-bottom: none; }
-        label { display: block; font-weight: bold; font-size: 12px; color: #1a5e37; margin-bottom: 5px; text-transform: uppercase; }
+        .seccion { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        label { display: block; font-weight: bold; font-size: 11px; color: #2c3e50; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
         
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-        button { width: 100%; margin-top: 8px; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        button:hover { background: #1e8449; }
+        /* Estilo de las listas de checkboxes */
+        .multi-select-container {
+            max-height: 150px; overflow-y: auto; border: 1px solid #ddd;
+            padding: 8px; border-radius: 6px; background: #fafafa;
+        }
+        .opcion-check { display: flex; align-items: center; font-size: 11px; margin-bottom: 5px; cursor: pointer; }
+        .opcion-check input { margin-right: 8px; width: auto; }
 
-        /* Leyenda Derecha */
+        input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; margin-top: 8px; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        
         .leyenda {
             position: absolute; bottom: 30px; right: 10px; z-index: 10;
-            background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 280px;
-            display: none; max-height: 250px; overflow-y: auto;
+            background: white; padding: 12px; border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 220px; display: none;
         }
-        .leyenda-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; }
-        .color-box { width: 12px; height: 12px; margin-right: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
 <div class="panel">
     <div class="seccion">
-        <label>1. Buscar Cuadrícula</label>
+        <label>📍 Buscar Cuadrícula</label>
         <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
-        <button onclick="buscarMalla()">🔍 Ir a zona</button>
+        <button onclick="buscarMalla()">Ir a zona</button>
     </div>
 
     <div class="seccion">
-        <label>2. Filtrar por Tipo (MFE)</label>
-        <select id="selector-definicion" onchange="filtrarMapa()">
-            <option value="todos">--- Mostrar Todo ---</option>
-        </select>
-        <p id="contador" style="font-size: 10px; color: #666; margin-top: 5px;"></p>
+        <label>🌲 Filtrar por Definición</label>
+        <div id="lista-definicion" class="multi-select-container"></div>
     </div>
-    
-    <div id="status-carga" style="font-size: 11px; font-weight: bold; color: #e67e22;">⏳ Cargando capas...</div>
-</div>
 
-<div class="leyenda" id="contenedor-leyenda">
-    <div style="font-weight:bold; font-size:12px; margin-bottom:8px; border-bottom:1px solid #ddd;">Tipos visibles:</div>
-    <div id="lista-leyenda"></div>
+    <div class="seccion">
+        <label>🚜 Filtrar por Uso de Suelo</label>
+        <div id="lista-uso" class="multi-select-container"></div>
+    </div>
+
+    <button onclick="limpiarFiltros()" style="background:#95a5a6; font-size:11px;">Restablecer Filtros</button>
+    <div id="status-carga" style="font-size: 10px; margin-top: 10px; text-align:center;">⌛ Cargando datos...</div>
 </div>
 
 <div id="map"></div>
@@ -70,106 +71,91 @@
         zoom: 8.5
     });
 
-    // Función de color consistente
-    function stringToColor(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
-        let color = '#';
-        for (let i = 0; i < 3; i++) {
-            let value = (hash >> (i * 8)) & 0xFF;
-            color += ('00' + value.toString(16)).substr(-2);
-        }
-        return color;
-    }
+    let globalData = null;
 
     map.on('load', async () => {
-        // Cargar MFE
-        const respMfe = await fetch('./Madrid_mfe_.geojson.json');
-        const dataMfe = await respMfe.json();
+        const resp = await fetch('./Madrid_mfe_.geojson.json');
+        globalData = await resp.json();
 
-        map.addSource('mfe-source', { type: 'geojson', data: dataMfe });
-        
+        map.addSource('mfe-source', { type: 'geojson', data: globalData });
         map.addLayer({
             'id': 'capa-forestal',
             'type': 'fill',
             'source': 'mfe-source',
-            'paint': {
-                'fill-color': ['step', ['zoom'], '#2ecc71', 20, '#2ecc71'], // Color base inicial
-                'fill-opacity': 0.75
-            }
+            'paint': { 'fill-color': '#2ecc71', 'fill-opacity': 0.7 }
         });
 
-        // RELLENAR EL DESPLEGABLE CON DEFINICIONES ÚNICAS
-        const selector = document.getElementById('selector-definicion');
-        const defsUnicas = [...new Set(dataMfe.features.map(f => f.properties.DEFINICION))].filter(d => d).sort();
-        
-        defsUnicas.forEach(def => {
-            const opt = document.createElement('option');
-            opt.value = def;
-            opt.innerHTML = def;
-            selector.appendChild(opt);
-        });
+        // Generar Checkboxes
+        generarChecks('DEFINICION', 'lista-definicion');
+        generarChecks('USOS_SUELO', 'lista-uso');
 
-        // Carga de Malla
+        // Carga malla
         fetch('./capas/Cuadriculas_madrid.geojson').then(r => r.json()).then(data => {
             window.datosMalla = data;
             map.addSource('malla-source', { type: 'geojson', data: data });
-            map.addLayer({ 'id': 'malla-lineas', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#7f8c8d', 'line-width': 0.5, 'line-opacity': 0.4 } });
-            map.addLayer({ 'id': 'resaltado', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#e74c3c', 'line-width': 4 }, 'filter': ['==', 'Malla10km_', ''] });
-            document.getElementById('status-carga').innerHTML = "✅ Sistema listo";
-            document.getElementById('status-carga').style.color = "green";
+            map.addLayer({ 'id': 'malla-lineas', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#7f8c8d', 'line-width': 0.5 } });
+            map.addLayer({ 'id': 'resaltado', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#e74c3c', 'line-width': 3 }, 'filter': ['==', 'Malla10km_', ''] });
+            document.getElementById('status-carga').innerHTML = "✅ Listo";
         });
-
-        // Evento de actualización de colores/leyenda
-        map.on('idle', actualizarEstetica);
     });
 
-    function filtrarMapa() {
-        const valor = document.getElementById('selector-definicion').value;
-        
-        if (valor === 'todos') {
-            map.setFilter('capa-forestal', null); // Muestra todo
-        } else {
-            map.setFilter('capa-forestal', ['==', ['get', 'DEFINICION'], valor]); // Filtra
-        }
-        actualizarEstetica();
+    function generarChecks(propiedad, contenedorId) {
+        const valores = [...new Set(globalData.features.map(f => f.properties[propiedad]))].filter(v => v).sort();
+        const contenedor = document.getElementById(contenedorId);
+
+        valores.forEach(val => {
+            const label = document.createElement('label');
+            label.className = 'opcion-check';
+            label.innerHTML = `<input type="checkbox" value="${val}" data-prop="${propiedad}" onchange="aplicarFiltros()"> ${val}`;
+            contenedor.appendChild(label);
+        });
     }
 
-    function actualizarEstetica() {
-        const features = map.queryRenderedFeatures({ layers: ['capa-forestal'] });
-        const divLeyenda = document.getElementById('contenedor-leyenda');
-        const lista = document.getElementById('lista-leyenda');
+    function aplicarFiltros() {
+        const checks = document.querySelectorAll('input[type="checkbox"]:checked');
         
-        if (features.length > 0) {
-            const cats = [...new Set(features.map(f => f.properties.DEFINICION))].filter(d => d).sort();
-            const colorMatch = ['match', ['get', 'DEFINICION']];
-            
-            lista.innerHTML = '';
-            cats.forEach(cat => {
-                const col = stringToColor(cat);
-                colorMatch.push(cat, col);
-                if (map.getZoom() > 10.5) {
-                    lista.innerHTML += `<div class="leyenda-item"><div class="color-box" style="background:${col}"></div>${cat}</div>`;
-                }
-            });
-            colorMatch.push('#cccccc');
-            map.setPaintProperty('capa-forestal', 'fill-color', colorMatch);
-            divLeyenda.style.display = (map.getZoom() > 10.5) ? 'block' : 'none';
-            document.getElementById('contador').innerHTML = `Teselas visibles: ${features.length}`;
+        if (checks.length === 0) {
+            map.setFilter('capa-forestal', null);
+            return;
         }
+
+        // Agrupar filtros por propiedad
+        const filtrosDef = [];
+        const filtrosUso = [];
+
+        checks.forEach(c => {
+            if (c.dataset.prop === 'DEFINICION') filtrosDef.push(c.value);
+            else filtrosUso.push(c.value);
+        });
+
+        const filterExpression = ['all'];
+
+        if (filtrosDef.length > 0) {
+            filterExpression.push(['in', ['get', 'DEFINICION'], ['literal', filtrosDef]]);
+        }
+        if (filtrosUso.length > 0) {
+            filterExpression.push(['in', ['get', 'USOS_SUELO'], ['literal', filtrosUso]]);
+        }
+
+        map.setFilter('capa-forestal', filterExpression);
+    }
+
+    function limpiarFiltros() {
+        document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+        map.setFilter('capa-forestal', null);
     }
 
     function buscarMalla() {
         const cod = document.getElementById('input-malla').value.trim().toUpperCase();
-        if (!window.datosMalla) return;
-        const f = window.datosMalla.features.find(x => x.properties.Malla10km_ === cod);
-        if (f) {
-            map.flyTo({ center: f.geometry.coordinates[0][0], zoom: 12 });
-            map.setFilter('resaltado', ['==', 'Malla10km_', cod]);
+        if (window.datosMalla) {
+            const f = window.datosMalla.features.find(x => x.properties.Malla10km_ === cod);
+            if (f) {
+                map.flyTo({ center: f.geometry.coordinates[0][0], zoom: 12 });
+                map.setFilter('resaltado', ['==', 'Malla10km_', cod]);
+            }
         }
     }
 
-    // Pop-up
     map.on('click', 'capa-forestal', (e) => {
         const p = e.features[0].properties;
         new maplibregl.Popup().setLngLat(e.lngLat)
