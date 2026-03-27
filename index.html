@@ -2,21 +2,21 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor TFG - MFE + Cuadrículas</title>
+    <title>Visor TFG - MFE Temático + Cuadrículas</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; font-family: sans-serif; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* Panel de control */
+        /* Panel de control (Arriba Izquierda) */
         .panel-control {
             position: absolute; top: 10px; left: 10px; z-index: 10;
             background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 250px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 260px;
         }
-        h3 { margin: 0 0 10px 0; font-size: 14px; color: #2c3e50; }
+        h3 { margin: 0 0 10px 0; font-size: 14px; color: #2c3e50; text-align: center; }
         input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
         button { 
             width: 100%; margin-top: 8px; padding: 10px; 
@@ -24,16 +24,32 @@
             border-radius: 4px; cursor: pointer; font-weight: bold;
         }
         button:hover { background: #219150; }
-        #status { font-size: 11px; margin-top: 8px; color: #666; }
+        #status { font-size: 11px; margin-top: 8px; color: #666; font-style: italic; }
+
+        /* Leyenda (Abajo Derecha) */
+        .leyenda {
+            position: absolute; bottom: 20px; right: 10px; z-index: 10;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 280px;
+            max-height: 40vh; overflow-y: auto; /* Scroll si hay muchas definiciones */
+        }
+        .leyenda-titulo { font-weight: bold; margin-bottom: 10px; color: #1a5e37; border-bottom: 2px solid #27ae60; padding-bottom: 4px; font-size: 13px; }
+        .leyenda-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; color: #333; line-height: 1.2; }
+        .leyenda-color { width: 16px; height: 16px; border-radius: 4px; margin-right: 10px; border: 1px solid rgba(0,0,0,0.2); flex-shrink: 0; }
     </style>
 </head>
 <body>
 
 <div class="panel-control">
-    <h3>Buscador de Cuadrículas</h3>
+    <h3>Visor TFG - MFE Madrid</h3>
     <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
-    <button onclick="buscarMalla()">🔍 Buscar y Centrar</button>
-    <div id="status">Cargando datos...</div>
+    <button onclick="buscarMalla()">🔍 Buscar Cuadrícula</button>
+    <div id="status">⏳ Cargando mapas forestales...</div>
+</div>
+
+<div class="leyenda">
+    <div class="leyenda-titulo">Leyenda: DEFINICION (MFE)</div>
+    <div id="leyenda-contenido">Cargando categorías...</div>
 </div>
 
 <div id="map"></div>
@@ -42,98 +58,93 @@
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [-3.703, 40.550],
-        zoom: 8.5
+        center: [-3.703, 40.550], // Madrid centrado
+        zoom: 8.8
     });
 
     let datosMalla = null;
 
+    // --- PALETA DE COLORES (Variados para MFE) ---
+    const coloresDefinicion = [
+        '#1b7a43', // Verde Bosque Intenso
+        '#7bb369', // Verde Claro
+        '#d4a373', // Marrón Claro/Suelo
+        '#a68a64', // Marrón Medio
+        '#ffb703', // Amarillo Intenso
+        '#e9edc9', // Beige Muy Claro
+        '#606c38', // Verde Oliva Oscuro
+        '#9b59b6', // Violeta (para destacar)
+        '#3498db', // Azul Claro (si hay agua/humedal)
+        '#e74c3c', // Rojo (urbanizado/otros)
+        '#95a5a6', // Gris
+        '#34495e'  // Azul Muy Oscuro
+    ];
+
     map.on('load', async () => {
         const status = document.getElementById('status');
+        const leyendaContenido = document.getElementById('leyenda-contenido');
 
         try {
-            // 1. CARGAR MFE (Tu capa que ya funciona)
+            // ==========================================================
+            // 1. CARGAR MFE (Tu capa base forestal)
+            // ==========================================================
+            const respMfe = await fetch('./Madrid_mfe_.geojson.json');
+            const dataMfe = await respMfe.json();
+
             map.addSource('mfe-source', {
                 type: 'geojson',
-                data: './Madrid_mfe_.geojson.json' 
+                data: dataMfe
             });
+
+            // --- A. EXTRAER DEFINICIONES ÚNICAS ---
+            // Buscamos todas las definiciones únicas en el archivo
+            const definicionesUnicas = [...new Set(
+                dataMfe.features
+                .map(f => f.properties.DEFINICION)
+                .filter(d => d && d.trim() !== "") // Quitar nulos o vacíos
+            )].sort(); // Ordenar alfabéticamente
+
+            // --- B. CREAR EL ESTILO DE COLOR DINÁMICO ---
+            // Estilo 'match': 'Si DEFINICION es X, usa color Y'
+            const estiloColorFill = ['match', ['get', 'DEFINICION']];
+            
+            // Rellenamos el estilo con cada definición y su color correspondiente
+            leyendaContenido.innerHTML = ''; // Limpiar mensaje de carga
+
+            definicionesUnicas.forEach((def, index) => {
+                // Asignamos un color de la paleta (usamos % para ciclar si hay más def. que colores)
+                const color = coloresDefinicion[index % coloresDefinicion.length];
+                
+                // Añadimos al estilo match: [valor_a_buscar, color_a_usar]
+                estiloColorFill.push(def, color);
+
+                // --- C. AÑADIR A LA LEYENDA VISUAL ---
+                const item = document.createElement('div');
+                item.className = 'leyenda-item';
+                item.innerHTML = `
+                    <div class="leyenda-color" style="background-color: ${color};"></div>
+                    <div>${def}</div>
+                `;
+                leyendaContenido.appendChild(item);
+            });
+
+            // Color por defecto si no coincide ninguna definición
+            estiloColorFill.push('#eeeeee'); // Gris muy claro por defecto
+
+            // --- D. AÑADIR LA CAPA TEMÁTICA AL MAPA ---
             map.addLayer({
                 'id': 'capa-forestal',
                 'type': 'fill',
                 'source': 'mfe-source',
-                'paint': { 'fill-color': '#2ecc71', 'fill-opacity': 0.4 }
+                'paint': {
+                    'fill-color': estiloColorFill, // ¡Aquí está la magia!
+                    'fill-opacity': 0.7, // Un poco más opaco para ver bien los colores
+                    'fill-outline-color': 'rgba(0,0,0,0.1)' // Borde muy sutil
+                }
             });
 
-            // 2. CARGAR CUADRÍCULAS (Desde la carpeta capas)
-            const resp = await fetch('./capas/Cuadriculas_madrid.geojson');
-            datosMalla = await resp.json();
-
-            map.addSource('malla-source', {
-                type: 'geojson',
-                data: datosMalla
-            });
-
-            // Dibujamos las líneas de la malla (finas y grises)
-            map.addLayer({
-                'id': 'capa-malla',
-                'type': 'line',
-                'source': 'malla-source',
-                'paint': { 'line-color': '#95a5a6', 'line-width': 0.8, 'line-opacity': 0.6 }
-            });
-
-            // Capa especial para RESALTAR la cuadrícula buscada (en ROJO)
-            map.addLayer({
-                'id': 'capa-resaltado',
-                'type': 'line',
-                'source': 'malla-source',
-                'paint': { 'line-color': '#e74c3c', 'line-width': 3 },
-                'filter': ['==', 'Malla10km_', '']
-            });
-
-            status.innerHTML = "✅ Sistema listo. Introduce código.";
-
-            // Pop-ups para el MFE (mantenemos lo anterior)
-            map.on('click', 'capa-forestal', (e) => {
-                const p = e.features[0].properties;
-                new maplibregl.Popup()
-                    .setLngLat(e.lngLat)
-                    .setHTML(`<b>Definición:</b> ${p.DEFINICION || 'N/A'}<br><b>Usos:</b> ${p.USOS_SUELO || 'N/A'}`)
-                    .addTo(map);
-            });
-
-        } catch (e) {
-            status.innerHTML = "❌ Error al cargar capas.";
-            console.error(e);
-        }
-    });
-
-    function buscarMalla() {
-        const codigo = document.getElementById('input-malla').value.trim().toUpperCase();
-        if (!codigo || !datosMalla) return;
-
-        // Buscar la cuadrícula en el archivo JSON
-        const feature = datosMalla.features.find(f => 
-            f.properties.Malla10km_ && f.properties.Malla10km_.toUpperCase() === codigo
-        );
-
-        if (feature) {
-            // Obtenemos una coordenada de la cuadrícula para mover el mapa
-            const coords = feature.geometry.coordinates[0][0];
-            
-            map.flyTo({
-                center: coords,
-                zoom: 11.5,
-                essential: true
-            });
-
-            // Aplicamos el filtro para que solo se ponga roja esa cuadrícula
-            map.setFilter('capa-resaltado', ['==', 'Malla10km_', codigo]);
-            document.getElementById('status').innerHTML = "📍 Viendo malla: " + codigo;
-        } else {
-            alert("La cuadrícula '" + codigo + "' no se encuentra en el archivo.");
-        }
-    }
-</script>
-
-</body>
-</html>
+            // ==========================================================
+            // 2. CARGAR CUADRÍCULAS (Tu buscador)
+            // ==========================================================
+            // Se asume que está en carpeta capas/
+            const respMalla = await fetch('./capas/Cuadriculas_madrid.geojson');
