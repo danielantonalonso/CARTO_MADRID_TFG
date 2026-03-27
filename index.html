@@ -2,166 +2,49 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor Forestal TFG - Filtro Multivariable</title>
+    <title>Visor Forestal TFG - Madrid Pro</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #f0f2f1; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* Panel Lateral Izquierdo */
+        /* Panel Izquierdo */
         .panel {
             position: absolute; top: 10px; left: 10px; z-index: 10;
             background: white; padding: 15px; border-radius: 12px;
-            box-shadow: 0 4px 25px rgba(0,0,0,0.15); width: 280px;
-            max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.2); width: 280px;
+            max-height: 85vh; overflow-y: auto;
         }
-        .seccion { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
-        label { display: block; font-weight: bold; font-size: 11px; color: #2c3e50; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .seccion { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        label { display: block; font-weight: bold; font-size: 11px; color: #1a5e37; margin-bottom: 8px; text-transform: uppercase; }
         
-        /* Estilo de las listas de checkboxes */
         .multi-select-container {
-            max-height: 150px; overflow-y: auto; border: 1px solid #ddd;
+            max-height: 140px; overflow-y: auto; border: 1px solid #ddd;
             padding: 8px; border-radius: 6px; background: #fafafa;
         }
-        .opcion-check { display: flex; align-items: center; font-size: 11px; margin-bottom: 5px; cursor: pointer; }
-        .opcion-check input { margin-right: 8px; width: auto; }
+        .opcion-check { display: flex; align-items: center; font-size: 10.5px; margin-bottom: 4px; cursor: pointer; color: #333; }
+        .opcion-check input { margin-right: 8px; }
 
-        input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; margin-top: 8px; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         
+        /* Leyenda Derecha */
         .leyenda {
             position: absolute; bottom: 30px; right: 10px; z-index: 10;
-            background: white; padding: 12px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 220px; display: none;
+            background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 250px;
+            display: none; max-height: 300px; overflow-y: auto;
         }
+        .leyenda-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 11px; }
+        .color-box { width: 14px; height: 14px; margin-right: 8px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; }
     </style>
 </head>
 <body>
 
 <div class="panel">
     <div class="seccion">
-        <label>📍 Buscar Cuadrícula</label>
-        <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
-        <button onclick="buscarMalla()">Ir a zona</button>
+        <label>📍 Cuadrícula</label>
+        <input type="text" id="input-malla" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;" placeholder="Ej: 30TVK42">
+        <button onclick="buscarMalla()" style="margin-top:5px;">🔍 Buscar</button>
     </div>
-
-    <div class="seccion">
-        <label>🌲 Filtrar por Definición</label>
-        <div id="lista-definicion" class="multi-select-container"></div>
-    </div>
-
-    <div class="seccion">
-        <label>🚜 Filtrar por Uso de Suelo</label>
-        <div id="lista-uso" class="multi-select-container"></div>
-    </div>
-
-    <button onclick="limpiarFiltros()" style="background:#95a5a6; font-size:11px;">Restablecer Filtros</button>
-    <div id="status-carga" style="font-size: 10px; margin-top: 10px; text-align:center;">⌛ Cargando datos...</div>
-</div>
-
-<div id="map"></div>
-
-<script>
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [-3.703, 40.550],
-        zoom: 8.5
-    });
-
-    let globalData = null;
-
-    map.on('load', async () => {
-        const resp = await fetch('./Madrid_mfe_.geojson.json');
-        globalData = await resp.json();
-
-        map.addSource('mfe-source', { type: 'geojson', data: globalData });
-        map.addLayer({
-            'id': 'capa-forestal',
-            'type': 'fill',
-            'source': 'mfe-source',
-            'paint': { 'fill-color': '#2ecc71', 'fill-opacity': 0.7 }
-        });
-
-        // Generar Checkboxes
-        generarChecks('DEFINICION', 'lista-definicion');
-        generarChecks('USOS_SUELO', 'lista-uso');
-
-        // Carga malla
-        fetch('./capas/Cuadriculas_madrid.geojson').then(r => r.json()).then(data => {
-            window.datosMalla = data;
-            map.addSource('malla-source', { type: 'geojson', data: data });
-            map.addLayer({ 'id': 'malla-lineas', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#7f8c8d', 'line-width': 0.5 } });
-            map.addLayer({ 'id': 'resaltado', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#e74c3c', 'line-width': 3 }, 'filter': ['==', 'Malla10km_', ''] });
-            document.getElementById('status-carga').innerHTML = "✅ Listo";
-        });
-    });
-
-    function generarChecks(propiedad, contenedorId) {
-        const valores = [...new Set(globalData.features.map(f => f.properties[propiedad]))].filter(v => v).sort();
-        const contenedor = document.getElementById(contenedorId);
-
-        valores.forEach(val => {
-            const label = document.createElement('label');
-            label.className = 'opcion-check';
-            label.innerHTML = `<input type="checkbox" value="${val}" data-prop="${propiedad}" onchange="aplicarFiltros()"> ${val}`;
-            contenedor.appendChild(label);
-        });
-    }
-
-    function aplicarFiltros() {
-        const checks = document.querySelectorAll('input[type="checkbox"]:checked');
-        
-        if (checks.length === 0) {
-            map.setFilter('capa-forestal', null);
-            return;
-        }
-
-        // Agrupar filtros por propiedad
-        const filtrosDef = [];
-        const filtrosUso = [];
-
-        checks.forEach(c => {
-            if (c.dataset.prop === 'DEFINICION') filtrosDef.push(c.value);
-            else filtrosUso.push(c.value);
-        });
-
-        const filterExpression = ['all'];
-
-        if (filtrosDef.length > 0) {
-            filterExpression.push(['in', ['get', 'DEFINICION'], ['literal', filtrosDef]]);
-        }
-        if (filtrosUso.length > 0) {
-            filterExpression.push(['in', ['get', 'USOS_SUELO'], ['literal', filtrosUso]]);
-        }
-
-        map.setFilter('capa-forestal', filterExpression);
-    }
-
-    function limpiarFiltros() {
-        document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
-        map.setFilter('capa-forestal', null);
-    }
-
-    function buscarMalla() {
-        const cod = document.getElementById('input-malla').value.trim().toUpperCase();
-        if (window.datosMalla) {
-            const f = window.datosMalla.features.find(x => x.properties.Malla10km_ === cod);
-            if (f) {
-                map.flyTo({ center: f.geometry.coordinates[0][0], zoom: 12 });
-                map.setFilter('resaltado', ['==', 'Malla10km_', cod]);
-            }
-        }
-    }
-
-    map.on('click', 'capa-forestal', (e) => {
-        const p = e.features[0].properties;
-        new maplibregl.Popup().setLngLat(e.lngLat)
-            .setHTML(`<b>Definición:</b> ${p.DEFINICION}<br><b>Uso:</b> ${p.USOS_SUELO}`)
-            .addTo(map);
-    });
-</script>
-</body>
-</html>
