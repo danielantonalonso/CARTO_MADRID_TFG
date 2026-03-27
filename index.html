@@ -2,138 +2,69 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor TFG Forestal - Madrid</title>
+    <title>Visor Forestal TFG</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .panel {
+        .indicador {
             position: absolute; top: 10px; left: 10px; z-index: 10;
             background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 260px;
+            font-family: Arial, sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
-        h3 { margin: 0 0 10px 0; font-size: 16px; color: #2c3e50; }
-        select { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; }
-        #status { margin-top: 10px; font-size: 11px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="panel">
-    <h3>Visor Forestal TFG</h3>
-    <label style="font-size: 12px; color: #666;">Selecciona Cuadrícula:</label>
-    <select id="selector-malla" onchange="irAMalla(this.value)">
-        <option value="">Cargando datos...</option>
-    </select>
-    <div id="status">⏳ Conectando con GitHub...</div>
+<div class="indicador">
+    <strong>Estado de la capa:</strong> <span id="msg">Cargando 79MB...</span>
+    <br><small>Ten paciencia, el archivo es muy pesado.</small>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // Configuración inicial del mapa
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [-3.703, 40.416],
+        center: [-3.703, 40.416], // Centro de Madrid
         zoom: 8
     });
 
-    map.on('load', async () => {
-        const status = document.getElementById('status');
+    map.on('load', () => {
+        // AQUÍ HEMOS QUITADO LA CARPETA "capas/" PORQUE EL ARCHIVO ESTÁ SUELTO
+        map.addSource('mfe-source', {
+            type: 'geojson',
+            data: './Madrid_mfe_.geojson.json' 
+        });
 
-        try {
-            // --- 1. CARGAR MAPA FORESTAL (MFE) ---
-            // Usando el nombre exacto que me has dado: Madrid_mfe_.geojson.json
-            map.addSource('forestal-source', {
-                type: 'geojson',
-                data: './capas/Madrid_mfe_.geojson.json'
-            });
+        map.addLayer({
+            'id': 'capa-forestal',
+            'type': 'fill',
+            'source': 'mfe-source',
+            'paint': {
+                'fill-color': '#27ae60',
+                'fill-opacity': 0.6
+            }
+        });
 
-            map.addLayer({
-                'id': 'capa-forestal',
-                'type': 'fill',
-                'source': 'forestal-source',
-                'paint': {
-                    'fill-color': '#27ae60',
-                    'fill-opacity': 0.5,
-                    'fill-outline-color': '#1b7a43'
-                }
-            });
+        // Comprobador de carga
+        map.on('sourcedata', (e) => {
+            if (e.sourceId === 'mfe-source' && e.isSourceLoaded) {
+                document.getElementById('msg').innerHTML = "✅ CAPA CARGADA";
+                document.getElementById('msg').style.color = "green";
+            }
+        });
 
-            // --- 2. CARGAR CUADRÍCULAS ---
-            const respMalla = await fetch('./capas/Cuadriculas_madrid.geojson');
-            if (!respMalla.ok) throw new Error("No se pudo cargar Cuadriculas_madrid.geojson");
-            const dataMalla = await respMalla.json();
-
-            map.addSource('malla-source', {
-                type: 'geojson',
-                data: dataMalla
-            });
-
-            // Dibujar líneas de las cuadrículas
-            map.addLayer({
-                'id': 'capa-malla-lineas',
-                'type': 'line',
-                'source': 'malla-source',
-                'paint': { 'line-color': '#34495e', 'line-width': 0.5, 'line-opacity': 0.5 }
-            });
-
-            // Capa especial para resaltar en ROJO la seleccionada
-            map.addLayer({
-                'id': 'capa-resaltado',
-                'type': 'line',
-                'source': 'malla-source',
-                'paint': { 'line-color': '#e74c3c', 'line-width': 3 },
-                'filter': ['==', 'Malla10km_', '']
-            });
-
-            // --- 3. RELLENAR EL DESPLEGABLE ---
-            const selector = document.getElementById('selector-malla');
-            selector.innerHTML = '<option value="">-- Selecciona código --</option>';
-
-            // Extraer códigos de la columna Malla10km_
-            const codigos = dataMalla.features
-                .map(f => f.properties.Malla10km_)
-                .filter((v, i, a) => v && a.indexOf(v) === i) // Únicos y no nulos
-                .sort();
-
-            codigos.forEach(c => {
-                const el = document.createElement('option');
-                el.value = c;
-                el.textContent = c;
-                selector.appendChild(el);
-            });
-
-            status.innerHTML = "✅ Capas cargadas con éxito";
-            status.style.color = "green";
-
-        } catch (e) {
-            status.innerHTML = "❌ Error: Comprueba nombres en carpeta 'capas'";
-            status.style.color = "red";
+        // Detector de errores
+        map.on('error', (e) => {
+            document.getElementById('msg').innerHTML = "❌ ERROR: No se puede leer el archivo";
+            document.getElementById('msg').style.color = "red";
             console.error(e);
-        }
+        });
     });
-
-    // Función para centrar el mapa al elegir en el desplegable
-    function irAMalla(codigo) {
-        if (!codigo) return;
-
-        // Buscamos la geometría en los datos cargados
-        const features = map.querySourceFeatures('malla-source');
-        const m = features.find(f => f.properties.Malla10km_ === codigo);
-
-        if (m) {
-            // Ir a la ubicación (tomamos el primer punto del polígono)
-            const centro = m.geometry.coordinates[0][0];
-            map.flyTo({ center: centro, zoom: 12, essential: true });
-            
-            // Resaltar en rojo
-            map.setFilter('capa-resaltado', ['==', 'Malla10km_', codigo]);
-        }
-    }
 </script>
 
 </body>
