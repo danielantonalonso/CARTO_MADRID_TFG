@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <title>Visor Forestal TFG - Madrid</title>
+    <title>Visor Forestal TFG - Filtro Avanzado</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
@@ -10,37 +10,53 @@
         body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
+        /* Panel de Control Izquierdo */
         .panel {
             position: absolute; top: 10px; left: 10px; z-index: 10;
-            background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); width: 220px;
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 260px;
         }
-        input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 8px; }
-        button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .seccion { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .seccion:last-child { border-bottom: none; }
+        label { display: block; font-weight: bold; font-size: 12px; color: #1a5e37; margin-bottom: 5px; text-transform: uppercase; }
+        
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+        button { width: 100%; margin-top: 8px; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #1e8449; }
 
+        /* Leyenda Derecha */
         .leyenda {
             position: absolute; bottom: 30px; right: 10px; z-index: 10;
             background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px;
             box-shadow: 0 0 15px rgba(0,0,0,0.3); width: 280px;
-            display: none; max-height: 300px; overflow-y: auto;
+            display: none; max-height: 250px; overflow-y: auto;
         }
-        .leyenda-titulo { font-weight: bold; font-size: 13px; margin-bottom: 10px; color: #1a5e37; border-bottom: 2px solid #27ae60; padding-bottom: 4px; }
         .leyenda-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; }
-        .color-box { width: 14px; height: 14px; margin-right: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); flex-shrink: 0; }
-        #status-carga { font-size: 10px; color: #666; margin-top: 5px; }
+        .color-box { width: 12px; height: 12px; margin-right: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
 <div class="panel">
-    <h3 style="margin:0 0 10px 0; font-size: 15px;">Buscador Malla</h3>
-    <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
-    <button onclick="buscarMalla()">🔍 Ir a cuadrícula</button>
-    <div id="status-carga">⏳ Cargando...</div>
+    <div class="seccion">
+        <label>1. Buscar Cuadrícula</label>
+        <input type="text" id="input-malla" placeholder="Ej: 30TVK42">
+        <button onclick="buscarMalla()">🔍 Ir a zona</button>
+    </div>
+
+    <div class="seccion">
+        <label>2. Filtrar por Tipo (MFE)</label>
+        <select id="selector-definicion" onchange="filtrarMapa()">
+            <option value="todos">--- Mostrar Todo ---</option>
+        </select>
+        <p id="contador" style="font-size: 10px; color: #666; margin-top: 5px;"></p>
+    </div>
+    
+    <div id="status-carga" style="font-size: 11px; font-weight: bold; color: #e67e22;">⏳ Cargando capas...</div>
 </div>
 
 <div class="leyenda" id="contenedor-leyenda">
-    <div class="leyenda-titulo">Leyenda de la zona:</div>
+    <div style="font-weight:bold; font-size:12px; margin-bottom:8px; border-bottom:1px solid #ddd;">Tipos visibles:</div>
     <div id="lista-leyenda"></div>
 </div>
 
@@ -54,12 +70,10 @@
         zoom: 8.5
     });
 
-    // Función para generar un color único basado en un texto
+    // Función de color consistente
     function stringToColor(str) {
         let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
+        for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
         let color = '#';
         for (let i = 0; i < 3; i++) {
             let value = (hash >> (i * 8)) & 0xFF;
@@ -69,19 +83,31 @@
     }
 
     map.on('load', async () => {
-        map.addSource('mfe-source', { 
-            type: 'geojson', 
-            data: './Madrid_mfe_.geojson.json'
-        });
+        // Cargar MFE
+        const respMfe = await fetch('./Madrid_mfe_.geojson.json');
+        const dataMfe = await respMfe.json();
+
+        map.addSource('mfe-source', { type: 'geojson', data: dataMfe });
         
         map.addLayer({
             'id': 'capa-forestal',
             'type': 'fill',
             'source': 'mfe-source',
             'paint': {
-                'fill-color': '#cccccc', // Color temporal
-                'fill-opacity': 0.7
+                'fill-color': ['step', ['zoom'], '#2ecc71', 20, '#2ecc71'], // Color base inicial
+                'fill-opacity': 0.75
             }
+        });
+
+        // RELLENAR EL DESPLEGABLE CON DEFINICIONES ÚNICAS
+        const selector = document.getElementById('selector-definicion');
+        const defsUnicas = [...new Set(dataMfe.features.map(f => f.properties.DEFINICION))].filter(d => d).sort();
+        
+        defsUnicas.forEach(def => {
+            const opt = document.createElement('option');
+            opt.value = def;
+            opt.innerHTML = def;
+            selector.appendChild(opt);
         });
 
         // Carga de Malla
@@ -90,49 +116,48 @@
             map.addSource('malla-source', { type: 'geojson', data: data });
             map.addLayer({ 'id': 'malla-lineas', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#7f8c8d', 'line-width': 0.5, 'line-opacity': 0.4 } });
             map.addLayer({ 'id': 'resaltado', 'type': 'line', 'source': 'malla-source', 'paint': { 'line-color': '#e74c3c', 'line-width': 4 }, 'filter': ['==', 'Malla10km_', ''] });
-            document.getElementById('status-carga').innerHTML = "✅ Listo";
+            document.getElementById('status-carga').innerHTML = "✅ Sistema listo";
+            document.getElementById('status-carga').style.color = "green";
         });
 
-        // Actualizar colores y leyenda cuando el mapa se mueva
-        map.on('idle', () => {
-            const features = map.queryRenderedFeatures({ layers: ['capa-forestal'] });
-            if (features.length > 0) {
-                const cats = [...new Set(features.map(f => f.properties.DEFINICION))].filter(d => d).sort();
-                
-                // Creamos un estilo de color dinámico para las teselas visibles
-                const colorMatch = ['match', ['get', 'DEFINICION']];
-                const lista = document.getElementById('lista-leyenda');
-                lista.innerHTML = '';
-
-                cats.forEach(cat => {
-                    const color = stringToColor(cat);
-                    colorMatch.push(cat, color);
-                    
-                    // Solo mostramos en la leyenda si estamos cerca (zoom > 10.5)
-                    if (map.getZoom() > 10.5) {
-                        lista.innerHTML += `
-                            <div class="leyenda-item">
-                                <div class="color-box" style="background:${color}"></div>
-                                <span>${cat}</span>
-                            </div>`;
-                    }
-                });
-
-                colorMatch.push('#cccccc'); // Color por defecto
-                map.setPaintProperty('capa-forestal', 'fill-color', colorMatch);
-                
-                // Mostrar/Ocultar leyenda según zoom
-                document.getElementById('contenedor-leyenda').style.display = (map.getZoom() > 10.5) ? 'block' : 'none';
-            }
-        });
-
-        map.on('click', 'capa-forestal', (e) => {
-            const p = e.features[0].properties;
-            new maplibregl.Popup().setLngLat(e.lngLat)
-                .setHTML(`<b>Definición:</b> ${p.DEFINICION}<br><b>Uso:</b> ${p.USOS_SUELO}`)
-                .addTo(map);
-        });
+        // Evento de actualización de colores/leyenda
+        map.on('idle', actualizarEstetica);
     });
+
+    function filtrarMapa() {
+        const valor = document.getElementById('selector-definicion').value;
+        
+        if (valor === 'todos') {
+            map.setFilter('capa-forestal', null); // Muestra todo
+        } else {
+            map.setFilter('capa-forestal', ['==', ['get', 'DEFINICION'], valor]); // Filtra
+        }
+        actualizarEstetica();
+    }
+
+    function actualizarEstetica() {
+        const features = map.queryRenderedFeatures({ layers: ['capa-forestal'] });
+        const divLeyenda = document.getElementById('contenedor-leyenda');
+        const lista = document.getElementById('lista-leyenda');
+        
+        if (features.length > 0) {
+            const cats = [...new Set(features.map(f => f.properties.DEFINICION))].filter(d => d).sort();
+            const colorMatch = ['match', ['get', 'DEFINICION']];
+            
+            lista.innerHTML = '';
+            cats.forEach(cat => {
+                const col = stringToColor(cat);
+                colorMatch.push(cat, col);
+                if (map.getZoom() > 10.5) {
+                    lista.innerHTML += `<div class="leyenda-item"><div class="color-box" style="background:${col}"></div>${cat}</div>`;
+                }
+            });
+            colorMatch.push('#cccccc');
+            map.setPaintProperty('capa-forestal', 'fill-color', colorMatch);
+            divLeyenda.style.display = (map.getZoom() > 10.5) ? 'block' : 'none';
+            document.getElementById('contador').innerHTML = `Teselas visibles: ${features.length}`;
+        }
+    }
 
     function buscarMalla() {
         const cod = document.getElementById('input-malla').value.trim().toUpperCase();
@@ -143,6 +168,14 @@
             map.setFilter('resaltado', ['==', 'Malla10km_', cod]);
         }
     }
+
+    // Pop-up
+    map.on('click', 'capa-forestal', (e) => {
+        const p = e.features[0].properties;
+        new maplibregl.Popup().setLngLat(e.lngLat)
+            .setHTML(`<b>Definición:</b> ${p.DEFINICION}<br><b>Uso:</b> ${p.USOS_SUELO}`)
+            .addTo(map);
+    });
 </script>
 </body>
 </html>
